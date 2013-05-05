@@ -1,0 +1,284 @@
+#!/usr/bin/ruby
+require "optparse"
+require "stringio"
+require "xml/libxml"
+require "set"
+
+XML.default_line_numbers=true
+
+$element = /^\s*([\$_[:alpha:]][\$_[:alnum:]]*)\s*(?:\/\/(.*))?$/
+$attribute = /^\s*(?:\[(\d*)\])?\s*([\$_[:alpha:]][\$_[:alnum:]]*)\s*=\s*([\.\$\_[:alnum:]]+)\s*(?:\/\/(.*))?$/
+$placeholder = /^\s*(?:\[(\d*)\])?\s*([\$_[:alpha:]][\$_[:alnum:]]*)\s*\!\s*(?:\/\/(.*))?$/
+$comment = /^\s*\/\/.*/
+
+# tags to be empty
+$empty_tags = [
+	"area",
+	"base",
+	"basefont",
+	"br",
+	"col",
+	"hr",
+	"img",
+	"input",
+	"isindex",
+	"link",
+	"meta",
+	"param",
+]
+
+class Walker
+	def walk(parent, node, in_placeholder)
+		case node.node_type
+		when LibXML::XML::Node::TEXT_NODE
+			text = node.content.strip
+			text.gsub!(/\s+/," ");
+			if text.empty? # FIXME: option
+				return nil
+			else
+				return "document.createTextNode('#{text}')"
+			end
+		when LibXML::XML::Node::ELEMENT_NODE
+			var = "n#{@last_var}"
+			@last_var = @last_var + 1
+			nodeNS = node.namespaces.namespace
+			if nodeNS
+				@proc.puts "\tvar #{var}=document.createElementNS('#{nodeNS.href}','#{node.name}');"
+			else
+				@proc.puts "\tvar #{var}=document.createElement('#{node.name}');"
+			end
+			node.attributes.each do |attribute|
+				attrNS = attribute.namespaces.namespace
+				if attrNS
+					@proc.puts "\t#{var}.setAttributeNS('#{attrNS.href}','#{attribute.name}','#{attribute.value}');"
+				else
+					@proc.puts "\t#{var}.setAttribute('#{attribute.name}','#{attribute.value}');"
+				end
+			end
+			placeholder = false
+			node.each do |child|
+				if child.comment?
+					if $comment.match(child.content)
+						# nothing to do.
+					elsif in_placeholder
+						raise "Error: You can't refer element in a placeholder (line #{node.line_num})"
+					elsif $element.match(child.content)
+						if @map.include?($1)
+							raise "Error: #{$1} is defined twice"
+						end
+						@map[$1] = $2
+						@proc.puts "\tObject.defineProperty(n0,'#{$1}',{"
+						@proc.puts "\t\tget:function(){return #{var};}"
+						@proc.puts "\t});"
+					elsif $attribute.match(child.content)
+						if @map.include?($2)
+							raise "Error: #{$2} is defined twice"
+						end
+						@map[$2] = $4
+						@proc.puts "\tObject.defineProperty(n0, '#{$2}',{"
+						@proc.puts "\t\tset:function(v){#{var}.#{$3}=v;},"
+						@proc.puts "\t\tget:function(){return #{var}.#{$3};}"
+						@proc.puts "\t});"
+						if $1
+							i = $1.to_i
+							if @args.include?(i)
+								raise "Error: argument #{i} is defined twice"
+							end
+							@args.add(i)
+							@proc.puts "\tif(#{i}<arguments.length){"
+							@proc.puts "\t\tn0.#{$2}=arguments[#{i}];"
+							@proc.puts "\t}"
+						end
+					elsif $placeholder.match(child.content)
+						if not parent
+							raise "Error: You can't replace root element (line #{node.line_num})"
+						end
+						if @map.include?($2)
+							raise "Error: #{$2} is defined twice"
+						end
+						@map[$2] = $3
+						@proc.puts "\tObject.defineProperty(n0,'#{$2}',{"
+						@proc.puts "\t\tset:function(v){#{parent}.replaceChild(v,#{var});#{var}=v;},"
+						@proc.puts "\t\tget:function(){return #{var};}"
+						@proc.puts "\t});"
+						if $1
+							i = $1.to_i
+							if @args.include?(i)
+								raise "Error: argument #{i} is defined twice"
+							end
+							@args.add(i)
+							@proc.puts "\tif(#{i}<arguments.length){"
+							@proc.puts "\t\tn0.#{$2}=arguments[#{i}];"
+							@proc.puts "\t}"
+						end
+						placeholder = true
+					else
+						raise "Syntax error in #{node.line_num}"
+					end
+				end
+			end
+			node.each do |child|
+				if not (child.cdata? || child.comment?)
+					childNS = child.namespaces.namespace
+					if childNS && childNS.href == "http://tshibata.github.io/2013/stasc"
+						if child.name == "plug"
+							jsdom = nil
+							child.each_element do |element|
+								if jsdom != nil
+									raise "Error: more than one element in a plug at #{node.line_num}"
+								end
+								jsdom = walk(parent, element, true)
+							end
+							name = child.attributes["name"]
+							order = child.attributes["order"]
+							if @map.include?(name)
+								raise "Error: #{name} is defined twice"
+							end
+							@map[name] = "" # FIXME
+							@proc.puts "\tObject.defineProperty(n0,'#{name}',{"
+							@proc.puts "\t\tset:function(v){#{var}.replaceChild(v,#{jsdom});#{jsdom}=v;},"
+							@proc.puts "\t\tget:function(){return #{jsdom};}"
+							@proc.puts "\t});"
+							if order
+								i = order.to_i
+								if @args.include?(i)
+									raise "Error: argument #{i} is defined twice"
+								end
+								@args.add(i)
+								@proc.puts "\tif(#{i}<arguments.length){"
+								@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
+								@proc.puts "\t}"
+							end
+							if jsdom
+								if $empty_tags.include?(node.name.downcase)
+									puts "Warning: #{node.name} should be empty (line #{node.line_num})"
+								end
+								@proc.puts "\t#{var}.appendChild(#{jsdom});"
+							end
+						elsif child.name == "bond"
+							name = child.attributes["name"]
+							if @map.include?(name)
+								raise "Error: #{name} is defined twice"
+							end
+							@map[name] = "" # FIXME
+							@proc.puts "\tObject.defineProperty(n0,'#{name}',{"
+							@proc.puts "\t\tget:function(){return #{var};}"
+							@proc.puts "\t});"
+						elsif child.name == "property"
+							name = child.attributes["name"]
+							target = child.attributes["target"]
+							order = child.attributes["order"]
+							if @map.include?(name)
+								raise "Error: #{name} is defined twice"
+							end
+							@map[name] = "" # FIXME
+							@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
+							@proc.puts "\t\tset:function(v){#{var}.#{target}=v;},"
+							@proc.puts "\t\tget:function(){return #{var}.#{target};}"
+							@proc.puts "\t});"
+							if order
+								i = order.to_i
+								if @args.include?(i)
+									raise "Error: argument #{i} is defined twice"
+								end
+								@args.add(i)
+								@proc.puts "\tif(#{i}<arguments.length){"
+								@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
+								@proc.puts "\t}"
+							end
+						elsif child.name == "attribute"
+							name = child.attributes["name"]
+							target = child.attributes["target"]
+							order = child.attributes["order"]
+							if @map.include?(name)
+								raise "Error: #{name} is defined twice"
+							end
+							@map[name] = "" #FIXME
+							@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
+							@proc.puts "\t\tset:function(v){#{var}.setAttribute('#{target}',v);},"
+							@proc.puts "\t\tget:function(){return #{var}.getAttribute('#{target}');}"
+							@proc.puts "\t});"
+							if order
+								i = order.to_i
+								if @args.include?(i)
+									raise "Error: argument #{i} is defined twice"
+								end
+								@args.add(i)
+								@proc.puts "\tif(#{i}<arguments.length){"
+								@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
+								@proc.puts "\t}"
+							end
+						else
+							raise "Error: unknown stasc tag at #{node.line_num}"
+						end
+					else
+						jsdom = walk(var, child, in_placeholder || placeholder)
+						if jsdom
+							if $empty_tags.include?(node.name.downcase)
+								puts "Warning: #{node.name} should be empty (line #{node.line_num})"
+							end
+							@proc.puts "\t#{var}.appendChild(#{jsdom});"
+						end
+					end
+				end
+			end
+			return var
+		end
+		return nil
+	end
+	def initialize(root)
+		@last_var = 0
+		@map = {}
+		@args = Set.new
+		@proc = StringIO.new()
+		@var = walk(nil, root, false)
+		if not (@args.sort == Array(0...@args.size))
+			raise "Unused argument(s)"
+		end
+	end
+	def var()
+		return @var
+	end
+	def proc()
+		return @proc.string
+	end
+end
+
+opt = OptionParser.new
+Version = 1.3
+
+$notice = "generated by stasc #{Version}" # default value
+opt.on("-n file", "--notice file") do |v|
+	File.open(v) do |file|
+		$notice = file.read
+	end
+end
+
+$output = "Stasc.js" # default value
+opt.on("-o file", "--output file") do |v|
+	$output = v
+end
+
+$prefix = "" # default value
+opt.on("-p prefix", "--prefix prefix") do |v|
+	$prefix = v
+end
+
+opt.parse!(ARGV)
+
+buf = StringIO.new
+buf.puts "/* #{$notice} */" if 0 < $notice.length
+(ARGV.empty? ? Dir.glob("*.ss.xml").sort : ARGV).each do |src|
+	dir = File.dirname(src)
+	sym = File.basename(src, ".ss.xml")
+	doc = XML::Document.file(src)
+	buf.puts "#{$prefix}#{sym}=function(){"
+	walker = Walker.new(doc.root)
+	buf.puts walker.proc
+	buf.puts "\treturn #{walker.var};"
+	buf.puts "};"
+end
+File.open($output, "w:utf-8") do |js|
+	js.puts buf.string
+end
+

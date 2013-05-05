@@ -1,0 +1,5 @@
+<div xmlns:ss="http://tshibata.github.io/2013/stasc">
+	<span><ss:bond name="hello"/>hello</span>
+	<span><ss:bond name="hello"/>hello</span>
+</div>
+
