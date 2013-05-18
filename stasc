@@ -85,7 +85,7 @@ class Walker
 				if (item.children.size == 1 and not item.children[0].text?) or 1 < item.children.size
 					raise "Error: item can contain only text"
 				end
-				@proc.puts "var m#{name}='#{item.content}';"
+				@proc.puts "\tvar m#{name}='#{item.content}';"
 				@map[name] = "" #FIXME
 				@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
 				@proc.puts "\t\tset:function(v){m#{name}=v;#{var}.#{yield composition};},"
@@ -102,7 +102,7 @@ class Walker
 					@proc.puts "\t}"
 				end
 			end
-			@proc.puts "#{var}.#{yield composition};"
+			@proc.puts "\t#{var}.#{yield composition};"
 		end
 	end
 
