@@ -1,0 +1,19 @@
+<html>
+<head>
+<script content="text/javascript" src="../helper.js"></script>
+<script content="text/javascript" src="Stasc.js"></script>
+<script content="text/javascript">
+function test() {
+	var expected1 = document.getElementById("body").firstChild;
+	var actual1 = format();
+	var expected2 = document.getElementById("body").firstChild.nextSibling;
+	var actual2 = format();
+	actual2.First = "Hello";
+	actual2.Second = "World";
+	return expected2.isEqualNode(actual2) &&  expected2.isEqualNode(actual2);
+}
+</script>
+</head>
+<body id="body"><span>hello world</span><span>Hello World</span></body>
+</html>
+

@@ -22,7 +22,90 @@ $empty_tags = [
 	"param",
 ]
 
+$ns = "http://tshibata.github.io/2013/stasc"
+
 class Walker
+	def term(var, child, getter) # for attribute and property
+		name = child.attributes["name"]
+		order = child.attributes["order"]
+		children = child.children.delete_if{|node| (node.text? and node.content.strip.length == 0)}
+		if name
+			if children.size != 0
+				raise "Error: named (monolithic) #{child.name} must be empty"
+			end
+			if @map.include?(name)
+				raise "Error: #{name} is defined twice"
+			end
+			@map[name] = "" #FIXME
+			@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
+			@proc.puts "\t\tset:function(v){#{var}.#{yield 'v'};},"
+			@proc.puts "\t\tget:function(){return #{var}.#{getter};}"
+			@proc.puts "\t});"
+			if order
+				i = order.to_i
+				if @args.include?(i)
+					raise "Error: argument #{i} is defined twice"
+				end
+				@args.add(i)
+				@proc.puts "\tif(#{i}<arguments.length){"
+				@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
+				@proc.puts "\t}"
+			end
+		else
+			if order
+				raise "Error: no order of nameless (composite) #{child.name}"
+			end
+			if children.size != 1
+				raise "Error: #{child.name} can contain only one format"
+			end
+			if children[0].namespaces.namespace.href != $ns or children[0].name != "format"
+				raise "Error: #{child.name} can contain only one format"
+			end
+			format = children[0]
+			list = [XML::Node.new_text("")]
+			format.each do |node|
+				if node.text? and list[-1].text?
+					list[-1] = XML::Node.new_text("#{list[-1].content}#{node.content}")
+				else
+					list.push(node)
+				end
+			end
+			composition = list.map{|node|
+				if node.text?
+					"'#{node.content}'"
+				elsif node.namespaces.namespace.href == $ns and node.name == "item"
+					"m#{node.attributes['name']}"
+				else
+					raise "Error: format can contain only texts and items"
+				end
+			}.join("+")
+			format.each_element do |item|
+				name = item.attributes["name"]
+				order = item.attributes["order"]
+				if (item.children.size == 1 and not item.children[0].text?) or 1 < item.children.size
+					raise "Error: item can contain only text"
+				end
+				@proc.puts "var m#{name}='#{item.content}';"
+				@map[name] = "" #FIXME
+				@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
+				@proc.puts "\t\tset:function(v){m#{name}=v;#{var}.#{yield composition};},"
+				@proc.puts "\t\tget:function(){return m#{name};}"
+				@proc.puts "\t});"
+				if order
+					i = order.to_i
+					if @args.include?(i)
+						raise "Error: argument #{i} is defined twice"
+					end
+					@args.add(i)
+					@proc.puts "\tif(#{i}<arguments.length){"
+					@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
+					@proc.puts "\t}"
+				end
+			end
+			@proc.puts "#{var}.#{yield composition};"
+		end
+	end
+
 	def walk(parent, node, in_placeholder)
 		case node.node_type
 		when LibXML::XML::Node::TEXT_NODE
@@ -53,7 +136,7 @@ class Walker
 			node.each do |child|
 				if not (child.cdata? || child.comment?)
 					childNS = child.namespaces.namespace
-					if childNS && childNS.href == "http://tshibata.github.io/2013/stasc"
+					if childNS && childNS.href == $ns
 						if child.name == "plug"
 							jsdom = nil
 							child.each_element do |element|
@@ -98,49 +181,13 @@ class Walker
 							@proc.puts "\t\tget:function(){return #{var};}"
 							@proc.puts "\t});"
 						elsif child.name == "property"
-							name = child.attributes["name"]
-							target = child.attributes["target"]
-							order = child.attributes["order"]
-							if @map.include?(name)
-								raise "Error: #{name} is defined twice"
-							end
-							@map[name] = "" # FIXME
-							@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
-							@proc.puts "\t\tset:function(v){#{var}.#{target}=v;},"
-							@proc.puts "\t\tget:function(){return #{var}.#{target};}"
-							@proc.puts "\t});"
-							if order
-								i = order.to_i
-								if @args.include?(i)
-									raise "Error: argument #{i} is defined twice"
-								end
-								@args.add(i)
-								@proc.puts "\tif(#{i}<arguments.length){"
-								@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
-								@proc.puts "\t}"
-							end
+							term(var, child, "#{child.attributes["target"]}") {|v|
+								"#{child.attributes["target"]}=#{v}"
+							}
 						elsif child.name == "attribute"
-							name = child.attributes["name"]
-							target = child.attributes["target"]
-							order = child.attributes["order"]
-							if @map.include?(name)
-								raise "Error: #{name} is defined twice"
-							end
-							@map[name] = "" #FIXME
-							@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
-							@proc.puts "\t\tset:function(v){#{var}.setAttribute('#{target}',v);},"
-							@proc.puts "\t\tget:function(){return #{var}.getAttribute('#{target}');}"
-							@proc.puts "\t});"
-							if order
-								i = order.to_i
-								if @args.include?(i)
-									raise "Error: argument #{i} is defined twice"
-								end
-								@args.add(i)
-								@proc.puts "\tif(#{i}<arguments.length){"
-								@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
-								@proc.puts "\t}"
-							end
+							term(var, child, "getAttribute('#{child.attributes["target"]}')") {|v|
+								"setAttribute('#{child.attributes["target"]}',#{v})"
+							}
 						else
 							raise "Error: unknown stasc tag at #{node.line_num}"
 						end
@@ -178,7 +225,7 @@ class Walker
 end
 
 opt = OptionParser.new
-Version = 1.32
+Version = 1.4
 
 $notice = "generated by stasc #{Version}" # default value
 opt.on("-n file", "--notice file") do |v|

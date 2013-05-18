@@ -1,0 +1,5 @@
+<span xmlns:ss="http://tshibata.github.io/2013/stasc"><ss:property target="textContent">
+<ss:format><ss:item name="First">hello</ss:item> <ss:item name="Second">world</ss:item></ss:format>
+</ss:property>
+</span>
+
