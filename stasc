@@ -86,11 +86,6 @@ class Walker
 					raise "Error: item can contain only text"
 				end
 				@proc.puts "\tvar m#{name}='#{item.content}';"
-				@map[name] = "" #FIXME
-				@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
-				@proc.puts "\t\tset:function(v){m#{name}=v;#{var}.#{yield composition};},"
-				@proc.puts "\t\tget:function(){return m#{name};}"
-				@proc.puts "\t});"
 				if order
 					i = order.to_i
 					if @args.include?(i)
@@ -98,9 +93,14 @@ class Walker
 					end
 					@args.add(i)
 					@proc.puts "\tif(#{i}<arguments.length){"
-					@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
+					@proc.puts "\t\tm#{name}=arguments[#{i}];"
 					@proc.puts "\t}"
 				end
+				@map[name] = "" #FIXME
+				@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
+				@proc.puts "\t\tset:function(v){m#{name}=v;#{var}.#{yield composition};},"
+				@proc.puts "\t\tget:function(){return m#{name};}"
+				@proc.puts "\t});"
 			end
 			@proc.puts "\t#{var}.#{yield composition};"
 		end
