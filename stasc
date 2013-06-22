@@ -106,7 +106,7 @@ class Walker
 		end
 	end
 
-	def walk(parent, node, in_placeholder)
+	def walk(node, in_placeholder)
 		case node.node_type
 		when LibXML::XML::Node::TEXT_NODE
 			text = node.content.strip
@@ -143,7 +143,7 @@ class Walker
 								if jsdom != nil
 									raise "Error: more than one element in a plug at #{node.line_num}"
 								end
-								jsdom = walk(parent, element, true)
+								jsdom = walk(element, true)
 							end
 							name = child.attributes["name"]
 							order = child.attributes["order"]
@@ -192,7 +192,7 @@ class Walker
 							raise "Error: unknown stasc tag at #{node.line_num}"
 						end
 					else
-						jsdom = walk(var, child, in_placeholder)
+						jsdom = walk(child, in_placeholder)
 						if jsdom
 							if $empty_tags.include?(node.name.downcase)
 								puts "Warning: #{node.name} should be empty (line #{node.line_num})"
@@ -211,7 +211,7 @@ class Walker
 		@map = {}
 		@args = Set.new
 		@proc = StringIO.new()
-		@var = walk(nil, root, false)
+		@var = walk(root, false)
 		if not (@args.sort == Array(0...@args.size))
 			raise "Unused argument(s)"
 		end
