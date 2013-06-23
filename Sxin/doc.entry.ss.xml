@@ -1,0 +1,6 @@
+<tr xmlns:ss="http://tshibata.github.io/2013/stasc">
+<td style="text-align: right;"><ss:property name="Name" order="0" target="textContent"/></td>
+<td>=</td>
+<td><ss:plug name="Value" order="1"><span></span></ss:plug></td>
+</tr>
+
