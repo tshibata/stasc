@@ -25,7 +25,7 @@ $empty_tags = [
 $ns = "http://tshibata.github.io/2013/stasc"
 
 class Walker
-	def term(var, child, getter) # for attribute and property
+	def term(graft, var, child, getter) # for attribute and property
 		name = child.attributes["name"]
 		order = child.attributes["order"]
 		children = child.children.delete_if{|node| (node.text? and node.content.strip.length == 0)}
@@ -37,7 +37,7 @@ class Walker
 				raise "Error: #{name} is defined twice"
 			end
 			@map[name] = "" #FIXME
-			@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
+			@proc.puts "\tObject.defineProperty(#{graft}, '#{name}',{"
 			@proc.puts "\t\tset:function(v){#{var}.#{yield 'v'};},"
 			@proc.puts "\t\tget:function(){return #{var}.#{getter};}"
 			@proc.puts "\t});"
@@ -48,7 +48,7 @@ class Walker
 				end
 				@args.add(i)
 				@proc.puts "\tif(#{i}<arguments.length){"
-				@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
+				@proc.puts "\t\t#{graft}.#{name}=arguments[#{i}];"
 				@proc.puts "\t}"
 			end
 		else
@@ -97,7 +97,7 @@ class Walker
 					@proc.puts "\t}"
 				end
 				@map[name] = "" #FIXME
-				@proc.puts "\tObject.defineProperty(n0, '#{name}',{"
+				@proc.puts "\tObject.defineProperty(#{graft}, '#{name}',{"
 				@proc.puts "\t\tset:function(v){m#{name}=v;#{var}.#{yield composition};},"
 				@proc.puts "\t\tget:function(){return m#{name};}"
 				@proc.puts "\t});"
@@ -106,7 +106,7 @@ class Walker
 		end
 	end
 
-	def walk(node, in_placeholder)
+	def walk(graft, node)
 		case node.node_type
 		when LibXML::XML::Node::TEXT_NODE
 			text = node.content.strip
@@ -119,6 +119,9 @@ class Walker
 		when LibXML::XML::Node::ELEMENT_NODE
 			var = "n#{@last_var}"
 			@last_var = @last_var + 1
+			if not graft
+				graft = var;
+			end
 			nodeNS = node.namespaces.namespace
 			if nodeNS
 				@proc.puts "\tvar #{var}=document.createElementNS('#{nodeNS.href}','#{node.name}');"
@@ -143,7 +146,7 @@ class Walker
 								if jsdom != nil
 									raise "Error: more than one element in a plug at #{node.line_num}"
 								end
-								jsdom = walk(element, true)
+								jsdom = walk(nil, element)
 							end
 							name = child.attributes["name"]
 							order = child.attributes["order"]
@@ -151,7 +154,7 @@ class Walker
 								raise "Error: #{name} is defined twice"
 							end
 							@map[name] = "" # FIXME
-							@proc.puts "\tObject.defineProperty(n0,'#{name}',{"
+							@proc.puts "\tObject.defineProperty(#{graft},'#{name}',{"
 							@proc.puts "\t\tset:function(v){#{var}.replaceChild(v,#{jsdom});#{jsdom}=v;},"
 							@proc.puts "\t\tget:function(){return #{jsdom};}"
 							@proc.puts "\t});"
@@ -168,7 +171,7 @@ class Walker
 								end
 								@args.add(i)
 								@proc.puts "\tif(#{i}<arguments.length){"
-								@proc.puts "\t\tn0.#{name}=arguments[#{i}];"
+								@proc.puts "\t\t#{graft}.#{name}=arguments[#{i}];"
 								@proc.puts "\t}"
 							end
 						elsif child.name == "bond"
@@ -177,22 +180,22 @@ class Walker
 								raise "Error: #{name} is defined twice"
 							end
 							@map[name] = "" # FIXME
-							@proc.puts "\tObject.defineProperty(n0,'#{name}',{"
+							@proc.puts "\tObject.defineProperty(#{graft},'#{name}',{"
 							@proc.puts "\t\tget:function(){return #{var};}"
 							@proc.puts "\t});"
 						elsif child.name == "property"
-							term(var, child, "#{child.attributes["target"]}") {|v|
+							term(graft, var, child, "#{child.attributes["target"]}") {|v|
 								"#{child.attributes["target"]}=#{v}"
 							}
 						elsif child.name == "attribute"
-							term(var, child, "getAttribute('#{child.attributes["target"]}')") {|v|
+							term(graft, var, child, "getAttribute('#{child.attributes["target"]}')") {|v|
 								"setAttribute('#{child.attributes["target"]}',#{v})"
 							}
 						else
 							raise "Error: unknown stasc tag at #{node.line_num}"
 						end
 					else
-						jsdom = walk(child, in_placeholder)
+						jsdom = walk(graft, child)
 						if jsdom
 							if $empty_tags.include?(node.name.downcase)
 								puts "Warning: #{node.name} should be empty (line #{node.line_num})"
@@ -211,7 +214,7 @@ class Walker
 		@map = {}
 		@args = Set.new
 		@proc = StringIO.new()
-		@var = walk(root, false)
+		@var = walk(nil, root)
 		if not (@args.sort == Array(0...@args.size))
 			raise "Unused argument(s)"
 		end
@@ -225,7 +228,7 @@ class Walker
 end
 
 opt = OptionParser.new
-Version = 1.41
+Version = 1.5
 
 $a = "Stasc-a.js" if File.exists?("Stasc-a.js") # default value
 opt.on("-a file", "--after file") do |v|
