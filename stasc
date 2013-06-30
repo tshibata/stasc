@@ -72,7 +72,10 @@ class Walker
 			end
 			composition = list.map{|node|
 				if node.text?
-					"'#{node.content}'"
+					text = node.content;
+					text.gsub!(/\\/) {"\\\\"};
+					text.gsub!(/'/) {"\\'"};
+					"'#{text}'"
 				elsif node.namespaces.namespace.href == $ns and node.name == "item"
 					"m#{node.attributes['name']}"
 				else
@@ -111,6 +114,8 @@ class Walker
 		when LibXML::XML::Node::TEXT_NODE
 			text = node.content.strip
 			text.gsub!(/\s+/," ");
+			text.gsub!(/\\/) {"\\\\"};
+			text.gsub!(/'/) {"\\'"};
 			if text.empty? # FIXME: option
 				return nil
 			else
