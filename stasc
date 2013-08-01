@@ -156,6 +156,9 @@ class Walker
 							end
 							jsdom = walk(nil, element)
 						end
+						if jsdom == nil
+							raise "Error: no element in a plug at #{child.line_num}"
+						end
 						name = child.attributes["name"]
 						order = child.attributes["order"]
 						if @names.include?(name)
