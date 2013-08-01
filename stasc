@@ -26,7 +26,26 @@ $empty_tags = [
 $ns = "http://tshibata.github.io/2013/stasc"
 
 class Walker
-	def term(graft, var, node, getter) # for attribute and property
+
+	def dataSetter(var, node, value)
+		target = node.attributes["target"]
+		if node.name == "attribute"
+			return "#{var}.setAttribute('#{target}',#{value})"
+		elsif node.name == "property"
+			return "#{var}.#{target}=#{value}"
+		end
+	end
+
+	def dataGetter(var, node)
+		target = node.attributes["target"]
+		if node.name == "attribute"
+			return "#{var}.getAttribute('#{target}')"
+		elsif node.name == "property"
+			return "#{var}.#{target}"
+		end
+	end
+
+	def term(graft, var, node) # for attribute and property
 		name = node.attributes["name"]
 		order = node.attributes["order"]
 		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
@@ -39,8 +58,8 @@ class Walker
 			end
 			@names.add(name)
 			@proc.puts "\tObject.defineProperty(#{graft}, '#{name}',{"
-			@proc.puts "\t\tset:function(v){#{var}.#{yield 'v'};},"
-			@proc.puts "\t\tget:function(){return #{var}.#{getter};}"
+			@proc.puts "\t\tset:function(v){#{dataSetter(var, node, 'v')};},"
+			@proc.puts "\t\tget:function(){return #{dataGetter(var, node)};}"
 			@proc.puts "\t});"
 			if order
 				i = order.to_i
@@ -105,11 +124,11 @@ class Walker
 				end
 				@names.add(name)
 				@proc.puts "\tObject.defineProperty(#{graft}, '#{name}',{"
-				@proc.puts "\t\tset:function(v){m#{name}=v;#{var}.#{yield composition};},"
+				@proc.puts "\t\tset:function(v){m#{name}=v;#{dataSetter(var, node, composition)};},"
 				@proc.puts "\t\tget:function(){return m#{name};}"
 				@proc.puts "\t});"
 			end
-			@proc.puts "\t#{var}.#{yield composition};"
+			@proc.puts "\t#{dataSetter(var, node, composition)};"
 		end
 	end
 
@@ -192,14 +211,8 @@ class Walker
 						@proc.puts "\tObject.defineProperty(#{graft},'#{name}',{"
 						@proc.puts "\t\tget:function(){return #{var};}"
 						@proc.puts "\t});"
-					elsif child.name == "property"
-						term(graft, var, child, "#{child.attributes["target"]}") {|v|
-							"#{child.attributes["target"]}=#{v}"
-						}
-					elsif child.name == "attribute"
-						term(graft, var, child, "getAttribute('#{child.attributes["target"]}')") {|v|
-							"setAttribute('#{child.attributes["target"]}',#{v})"
-						}
+					elsif child.name == "attribute" or child.name == "property" 
+						term(graft, var, child)
 					else
 						raise "Error: unknown stasc tag at #{child.line_num}"
 					end
