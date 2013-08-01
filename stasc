@@ -152,7 +152,7 @@ class Walker
 						jsdom = nil
 						child.each_element do |element|
 							if jsdom != nil
-								raise "Error: more than one element in a plug at #{node.line_num}"
+								raise "Error: more than one element in a plug at #{child.line_num}"
 							end
 							jsdom = walk(nil, element)
 						end
@@ -200,7 +200,7 @@ class Walker
 							"setAttribute('#{child.attributes["target"]}',#{v})"
 						}
 					else
-						raise "Error: unknown stasc tag at #{node.line_num}"
+						raise "Error: unknown stasc tag at #{child.line_num}"
 					end
 				else
 					jsdom = walk(graft, child)
