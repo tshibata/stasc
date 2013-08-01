@@ -149,6 +149,9 @@ class Walker
 				childNS = child.namespaces.namespace
 				if childNS && childNS.href == $ns
 					if child.name == "plug"
+						if $empty_tags.include?(node.name.downcase)
+							puts "Warning: #{node.name} should be empty (line #{node.line_num})"
+						end
 						jsdom = nil
 						child.each_element do |element|
 							if jsdom != nil
@@ -169,12 +172,7 @@ class Walker
 						@proc.puts "\t\tset:function(v){#{var}.replaceChild(v,#{jsdom});#{jsdom}=v;},"
 						@proc.puts "\t\tget:function(){return #{jsdom};}"
 						@proc.puts "\t});"
-						if jsdom
-							if $empty_tags.include?(node.name.downcase)
-								puts "Warning: #{node.name} should be empty (line #{node.line_num})"
-							end
-							@proc.puts "\t#{var}.appendChild(#{jsdom});"
-						end
+						@proc.puts "\t#{var}.appendChild(#{jsdom});"
 						if order
 							i = order.to_i
 							if @args.include?(i)
