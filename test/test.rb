@@ -32,7 +32,7 @@ Dir.glob("*_test").each do |dir|
 		$error = false
 		`chromium-browser --temp-profile http://localhost:#{$port}/#{dir}/index.html`
 		if $error
-			puts "FAIL: #{dir} #{error}"
+			puts "FAIL: #{dir} #{$error}"
 			break
 		end
 	else
