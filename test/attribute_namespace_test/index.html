@@ -1,0 +1,16 @@
+<html xmlns:xlink="http://www.w3.org/1999/xlink">
+<head>
+<script content="text/javascript" src="../helper.js"></script>
+<script content="text/javascript" src="Stasc.js"></script>
+<script content="text/javascript">
+function test() {
+	var expected = document.getElementById("body").firstChild;
+	var actual = attribute();
+	actual.href = "http://tshibata.github.io/stasc/";
+	return expected.isEqualNode(actual);
+}
+</script>
+</head>
+<body id="body"><svg><a xlink:href="http://tshibata.github.io/">link1</a><a xlink:href="http://tshibata.github.io/stasc/">link2</a></svg></body>
+</html>
+

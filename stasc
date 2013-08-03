@@ -30,7 +30,13 @@ class Walker
 	def dataSetter(var, node, value)
 		target = node.attributes["target"]
 		if node.name == "attribute"
-			return "#{var}.setAttribute('#{target}',#{value})"
+			if /([^:]*):(.*)/ =~ target
+				ns = node.namespaces.find_by_prefix($1)
+				name = $3
+				return "#{var}.setAttributeNS('#{ns.href}','#{target}',#{value})"
+			else
+				return "#{var}.setAttribute('#{target}',#{value})"
+			end
 		elsif node.name == "property"
 			return "#{var}.#{target}=#{value}"
 		end
@@ -39,7 +45,13 @@ class Walker
 	def dataGetter(var, node)
 		target = node.attributes["target"]
 		if node.name == "attribute"
-			return "#{var}.getAttribute('#{target}')"
+			if /([^:]*):(.*)/ =~ target
+				ns = node.namespaces.find_by_prefix($1)
+				name = $3
+				return "#{var}.getAttributeNS('#{ns.href}','#{target}')"
+			else
+				return "#{var}.getAttribute('#{target}')"
+			end
 		elsif node.name == "property"
 			return "#{var}.#{target}"
 		end
