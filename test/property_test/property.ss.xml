@@ -1,0 +1,6 @@
+<div xmlns:ss="http://tshibata.github.io/2013/stasc">
+	<a href="http://localhost/" target="_blank">
+		<ss:property name="textContent" target="textContent"/>
+	</a>
+</div>
+
