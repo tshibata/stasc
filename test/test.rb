@@ -5,7 +5,8 @@ $port = 10080
 server = WEBrick::HTTPServer.new({
 	:DocumentRoot => "./",
 	:BindAddress => "127.0.0.1",
-	:Port => $port
+	:Port => $port,
+	:AccessLog => []
 })
 
 trap("INT") do
@@ -30,7 +31,7 @@ Dir.glob("*_test").each do |dir|
 			break
 		end
 		$error = false
-		`chromium-browser --temp-profile http://localhost:#{$port}/#{dir}/index.html`
+		`chromium-browser --temp-profile http://localhost:#{$port}/#{dir}/index.html 2>&1`
 		if $error
 			puts "FAIL: #{dir} #{$error}"
 			break
