@@ -305,14 +305,18 @@ begin
 		end
 	end
 	(ARGV.empty? ? Dir.glob("*.ss.xml").sort : ARGV).each do |src|
-		dir = File.dirname(src)
-		sym = File.basename(src, ".ss.xml")
-		doc = XML::Document.file(src)
-		buf.puts "#{$prefix}#{sym}=function(){"
-		walker = Walker.new(doc.root)
-		buf.puts walker.proc
-		buf.puts "\treturn #{walker.var};"
-		buf.puts "};"
+		begin
+			dir = File.dirname(src)
+			sym = File.basename(src, ".ss.xml")
+			doc = XML::Document.file(src)
+			buf.puts "#{$prefix}#{sym}=function(){"
+			walker = Walker.new(doc.root)
+			buf.puts walker.proc
+			buf.puts "\treturn #{walker.var};"
+			buf.puts "};"
+		rescue Exception => exception
+			$stderr.puts "#{exception} in #{src}"
+		end
 	end
 	if $b
 		File.open($b) do |file|
