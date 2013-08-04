@@ -1,7 +1,7 @@
 <table style="border: 1px solid;" xmlns:ss="http://tshibata.github.io/2013/stasc">
 <thead>
 <tr><td colspan="3" style="text-align: center; border-bottom: 2px solid;">
-<span><ss:property name="Type" target="textContent"/></span>()
+<span><ss:property name="Type" target="textContent"/></span>
 </td></tr>
 </thead>
 <tbody>

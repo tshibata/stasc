@@ -11,8 +11,15 @@
 			f(o.childNodes[i]);
 		}
 	};
-	var h = function(o) {
-		var container = window[o.nodeType]();
+	var h = function(o, d) {
+		var container;
+		if (o.nodeType) {
+			container = window[o.nodeType]();
+		} else if (d) {
+			container = d;
+		} else {
+			//FIXME: handle error
+		}
 		for (var key in o) {
 			if (key !== "nodeType") {
 				switch (Object.prototype.toString.call(o[key])) {
@@ -26,7 +33,7 @@
 					}
 					break;
 				default:
-					container[key] = h(o[key]);
+					container[key] = h(o[key], container[key]);
 					break;
 				}
 			}

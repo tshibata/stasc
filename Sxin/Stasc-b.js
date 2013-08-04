@@ -28,7 +28,7 @@
 			container = doc.map();
 			for (var key in o) {
 				if (key === "nodeType") {
-					container.Type = o.nodeType;
+					container.Type = o.nodeType + "()";
 				} else {
 					container.Entries.appendChild(doc.entry(key, g(o[key])));
 				}
