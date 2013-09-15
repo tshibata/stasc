@@ -1,17 +1,17 @@
 (function() {
 	var lastElement;
 	var lastComment;
-	var f = function(o) {
+	var scanHtml = function(o) {
 		if (o.nodeType == 1) {
 			lastElement = o;
 		} else if (o.nodeType == 8) {
 			lastComment = o;
 		}
 		for (var i = 0; i < o.childNodes.length; i++) {
-			f(o.childNodes[i]);
+			scanHtml(o.childNodes[i]);
 		}
 	};
-	var h = function(o, d) {
+	var scanJson = function(o, d) {
 		var container;
 		if (o.nodeType) {
 			container = window[o.nodeType]();
@@ -29,19 +29,19 @@
 					break;
 				case "[object Array]":
 					for (var i = 0; i < o[key].length; i++) {
-						container[key].appendChild(h(o[key][i]));
+						container[key].appendChild(scanJson(o[key][i]));
 					}
 					break;
 				default:
-					container[key] = h(o[key], container[key]);
+					container[key] = scanJson(o[key], container[key]);
 					break;
 				}
 			}
 		}
 		return container;
 	};
-	f(document);
-	var element = h(JSON.parse(lastComment.nodeValue));
+	scanHtml(document);
+	var element = scanJson(JSON.parse(lastComment.nodeValue));
 	lastElement.parentNode.insertBefore(element, lastElement);
 })();
 

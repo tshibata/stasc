@@ -82,17 +82,17 @@ doc.map=function(){
 
 	var lastElement;
 	var lastComment;
-	var f = function(o) {
+	var scanHtml = function(o) {
 		if (o.nodeType == 1) {
 			lastElement = o;
 		} else if (o.nodeType == 8) {
 			lastComment = o;
 		}
 		for (var i = 0; i < o.childNodes.length; i++) {
-			f(o.childNodes[i]);
+			scanHtml(o.childNodes[i]);
 		}
 	};
-	var g = function(o) {
+	var scanJson = function(o) {
 		var container;
 		switch (Object.prototype.toString.call(o)) {
 		case "[object Number]":
@@ -102,7 +102,7 @@ doc.map=function(){
 		case "[object Array]":
 			container = doc.list();
 			for (var i = 0; i < o.length; i++) {
-				container.Items.appendChild(doc.item(g(o[i])));
+				container.Items.appendChild(doc.item(scanJson(o[i])));
 			}
 			return container;
 		default:
@@ -111,14 +111,14 @@ doc.map=function(){
 				if (key === "nodeType") {
 					container.Type = o.nodeType + "()";
 				} else {
-					container.Entries.appendChild(doc.entry(key, g(o[key])));
+					container.Entries.appendChild(doc.entry(key, scanJson(o[key])));
 				}
 			}
 			return container;
 		}
 	};
-	f(document);
-	var element = g(JSON.parse(lastComment.nodeValue));
+	scanHtml(document);
+	var element = scanJson(JSON.parse(lastComment.nodeValue));
 	lastElement.parentNode.insertBefore(element, lastElement);
 })();
 
