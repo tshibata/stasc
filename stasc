@@ -32,8 +32,8 @@ class Walker
 		if node.name == "attribute"
 			if /([^:]*):(.*)/ =~ target
 				ns = node.namespaces.find_by_prefix($1)
-				name = $3
-				return "#{var}.setAttributeNS('#{ns.href}','#{target}',#{value})"
+				name = $2
+				return "#{var}.setAttributeNS('#{ns.href}','#{name}',#{value})"
 			else
 				return "#{var}.setAttribute('#{target}',#{value})"
 			end
@@ -47,8 +47,8 @@ class Walker
 		if node.name == "attribute"
 			if /([^:]*):(.*)/ =~ target
 				ns = node.namespaces.find_by_prefix($1)
-				name = $3
-				return "#{var}.getAttributeNS('#{ns.href}','#{target}')"
+				name = $2
+				return "#{var}.getAttributeNS('#{ns.href}','#{name}')"
 			else
 				return "#{var}.getAttribute('#{target}')"
 			end
