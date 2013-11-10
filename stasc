@@ -315,7 +315,7 @@ begin
 			buf.puts "\treturn #{walker.var};"
 			buf.puts "};"
 		rescue Exception => exception
-			$stderr.puts "#{exception} in #{src}"
+			raise "#{exception} in #{src}"
 		end
 	end
 	if $b

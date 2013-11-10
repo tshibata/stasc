@@ -142,7 +142,7 @@ describe('ss.xml with stasc format tag', function () {
 describe('ss.xml with double definition', function () {
 	it('should fail', function (done) {
 		child_process.exec('bash -c ../../stasc', {cwd: 'test/double_def_test'}, function (error, stdout, stderr) {
-			//error.should.not.equal(null);
+			error.should.not.equal(null);
 			stderr.should.not.equal('');
 
 			done();
