@@ -1,8 +1,5 @@
-<div xmlns:ss="http://tshibata.github.io/2013/stasc">
-	<a>
-		<ss:attribute name="href" target="href"/>
-		<ss:attribute name="target" target="target"/>
-		link
-	</a>
-</div>
+<a xmlns:ss="http://tshibata.github.io/2013/stasc">
+	<ss:attribute name="Href" target="href"/>
+	link
+</a>
 
