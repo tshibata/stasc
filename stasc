@@ -217,6 +217,24 @@ class Property < NamedValue
 	end
 end
 
+class Bond
+
+	def initialize(var, node)
+		@var = var
+		@name = node.attributes["name"]
+	end
+
+	def output(names, proc, graft)
+		if names.include?(@name)
+			raise "Error: #{@name} is defined twice"
+		end
+		names.add(@name)
+		proc.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
+		proc.puts "\t\tget:function(){return #{@var};}"
+		proc.puts "\t});"
+	end
+end
+
 class Walker
 
 	def walk(graft, node)
@@ -290,14 +308,8 @@ class Walker
 							@proc.puts "\t}"
 						end
 					elsif child.name == "bond"
-						name = child.attributes["name"]
-						if @names.include?(name)
-							raise "Error: #{name} is defined twice"
-						end
-						@names.add(name)
-						@proc.puts "\tObject.defineProperty(#{graft},'#{name}',{"
-						@proc.puts "\t\tget:function(){return #{var};}"
-						@proc.puts "\t});"
+						bond = Bond.new(var, node)
+						bond.output(@names, @proc, graft)
 					elsif child.name == "attribute"
 						attribute = Attribute.new(var, child)
 						attribute.output(@args, @names, @proc, graft)
