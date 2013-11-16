@@ -125,6 +125,38 @@ class StaticItem
 	end
 end
 
+class Format
+
+	def initialize(node)
+		@items = [StaticItem.new("")]
+		node.each do |n|
+			if n.text?
+				if not @items[-1].append(n.content)
+					@items.push(StaticItem.new(n.content))
+				end
+			elsif n.namespaces.namespace.href == $ns and n.name == "item"
+				if n.children.size != 1
+					raise "Error: item can contain only text"
+				end
+				if not n.children[0].text?
+					raise "Error: item can contain only text"
+				end
+				@items.push(Item.new(n.attributes["name"], n.attributes["order"], n.content))
+			else
+				raise "Error: format can contain only texts and items"
+			end
+		end
+		@composition = @items.map{|item| item.getValue()}.join("+")
+	end
+
+	def output(args, names, proc, graft, accessor)
+		@items.each do |item|
+			item.output(args, names, proc, graft, accessor, @composition)
+		end
+		proc.puts "\t#{accessor.dataSetter(@composition)};"
+	end
+end
+
 class Walker
 
 	def term(graft, node, accessor) # for attribute and property
@@ -163,29 +195,8 @@ class Walker
 			if children[0].namespaces.namespace.href != $ns or children[0].name != "format"
 				raise "Error: #{node.name} can contain only one format"
 			end
-			items = [StaticItem.new("")]
-			children[0].each do |n|
-				if n.text?
-					if not items[-1].append(n.content)
-						items.push(StaticItem.new(n.content))
-					end
-				elsif n.namespaces.namespace.href == $ns and n.name == "item"
-					if n.children.size != 1
-						raise "Error: item can contain only text"
-					end
-					if not n.children[0].text?
-						raise "Error: item can contain only text"
-					end
-					items.push(Item.new(n.attributes["name"], n.attributes["order"], n.content))
-				else
-					raise "Error: format can contain only texts and items"
-				end
-			end
-			composition = items.map{|item| item.getValue()}.join("+")
-			items.each do |item|
-				item.output(@args, @names, @proc, graft, accessor, composition)
-			end
-			@proc.puts "\t#{accessor.dataSetter(composition)};"
+			format = Format.new(children[0])
+			format.output(@args, @names, @proc, graft, accessor)
 		end
 	end
 
