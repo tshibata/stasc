@@ -67,6 +67,64 @@ class PropertyAccessor
 	end
 end
 
+class Item
+
+	def initialize(name, order, text)
+		@name = name
+		@order = order
+		@text = text
+	end
+
+	def append(text)
+		return false
+	end
+
+	def getValue()
+		return "m#{@name}"
+	end
+
+	def output(args, names, proc, graft, accessor, composition)
+		proc.puts "\tvar m#{@name}='#{@text}';"
+		if @order
+			i = @order.to_i
+			if args.include?(i)
+				raise "Error: argument #{i} is defined twice"
+			end
+			args.add(i)
+			proc.puts "\tif(#{i}<arguments.length){"
+			proc.puts "\t\tm#{@name}=arguments[#{i}];"
+			proc.puts "\t}"
+		end
+		names.add(@name)
+		proc.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
+		proc.puts "\t\tset:function(v){m#{@name}=v;#{accessor.dataSetter(composition)};},"
+		proc.puts "\t\tget:function(){return m#{@name};}"
+		proc.puts "\t});"
+	end
+end
+
+class StaticItem
+
+	def initialize(text)
+		@text = text
+	end
+
+	def append(text)
+		@text = @text + text
+		return true
+	end
+
+	def getValue()
+		text = @text;
+		text.gsub!(/\\/) {"\\\\"};
+		text.gsub!(/'/) {"\\'"};
+		return "'#{text}'"
+	end
+
+	def output(args, names, proc, graft, accessor, composition)
+	end
+end
+
 class Walker
 
 	def term(graft, node, accessor) # for attribute and property
@@ -105,52 +163,27 @@ class Walker
 			if children[0].namespaces.namespace.href != $ns or children[0].name != "format"
 				raise "Error: #{node.name} can contain only one format"
 			end
-			format = children[0]
-			list = [XML::Node.new_text("")]
-			format.each do |n|
-				if n.text? and list[-1].text?
-					list[-1] = XML::Node.new_text("#{list[-1].content}#{n.content}")
-				else
-					list.push(n)
-				end
-			end
-			composition = list.map{|n|
+			items = [StaticItem.new("")]
+			children[0].each do |n|
 				if n.text?
-					text = n.content;
-					text.gsub!(/\\/) {"\\\\"};
-					text.gsub!(/'/) {"\\'"};
-					"'#{text}'"
+					if not items[-1].append(n.content)
+						items.push(StaticItem.new(n.content))
+					end
 				elsif n.namespaces.namespace.href == $ns and n.name == "item"
-					"m#{n.attributes['name']}"
+					if n.children.size != 1
+						raise "Error: item can contain only text"
+					end
+					if not n.children[0].text?
+						raise "Error: item can contain only text"
+					end
+					items.push(Item.new(n.attributes["name"], n.attributes["order"], n.content))
 				else
 					raise "Error: format can contain only texts and items"
 				end
-			}.join("+")
-			format.each_element do |item|
-				name = item.attributes["name"]
-				order = item.attributes["order"]
-				if item.children.size != 1
-					raise "Error: item can contain only text"
-				end
-				if not item.children[0].text?
-					raise "Error: item can contain only text"
-				end
-				@proc.puts "\tvar m#{name}='#{item.content}';"
-				if order
-					i = order.to_i
-					if @args.include?(i)
-						raise "Error: argument #{i} is defined twice"
-					end
-					@args.add(i)
-					@proc.puts "\tif(#{i}<arguments.length){"
-					@proc.puts "\t\tm#{name}=arguments[#{i}];"
-					@proc.puts "\t}"
-				end
-				@names.add(name)
-				@proc.puts "\tObject.defineProperty(#{graft}, '#{name}',{"
-				@proc.puts "\t\tset:function(v){m#{name}=v;#{accessor.dataSetter(composition)};},"
-				@proc.puts "\t\tget:function(){return m#{name};}"
-				@proc.puts "\t});"
+			end
+			composition = items.map{|item| item.getValue()}.join("+")
+			items.each do |item|
+				item.output(@args, @names, @proc, graft, accessor, composition)
 			end
 			@proc.puts "\t#{accessor.dataSetter(composition)};"
 		end
