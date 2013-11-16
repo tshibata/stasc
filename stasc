@@ -26,42 +26,50 @@ $empty_tags = [
 $ns = "http://tshibata.github.io/2013/stasc"
 
 class AttributeAccessor
-	def dataSetter(var, node, value)
-		target = node.attributes["target"]
+	def initialize(var, node)
+		@var = var
+		@node = node
+	end
+	def dataSetter(value)
+		target = @node.attributes["target"]
 		if /([^:]*):(.*)/ =~ target
-			ns = node.namespaces.find_by_prefix($1)
+			ns = @node.namespaces.find_by_prefix($1)
 			name = $2
-			return "#{var}.setAttributeNS('#{ns.href}','#{name}',#{value})"
+			return "#{@var}.setAttributeNS('#{ns.href}','#{name}',#{value})"
 		else
-			return "#{var}.setAttribute('#{target}',#{value})"
+			return "#{@var}.setAttribute('#{target}',#{value})"
 		end
 	end
-	def dataGetter(var, node)
-		target = node.attributes["target"]
+	def dataGetter()
+		target = @node.attributes["target"]
 		if /([^:]*):(.*)/ =~ target
-			ns = node.namespaces.find_by_prefix($1)
+			ns = @node.namespaces.find_by_prefix($1)
 			name = $2
-			return "#{var}.getAttributeNS('#{ns.href}','#{name}')"
+			return "#{@var}.getAttributeNS('#{ns.href}','#{name}')"
 		else
-			return "#{var}.getAttribute('#{target}')"
+			return "#{@var}.getAttribute('#{target}')"
 		end
 	end
 end
 
 class PropertyAccessor
-	def dataSetter(var, node, value)
-		target = node.attributes["target"]
-		return "#{var}.#{target}=#{value}"
+	def initialize(var, node)
+		@var = var
+		@node = node
 	end
-	def dataGetter(var, node)
-		target = node.attributes["target"]
-		return "#{var}.#{target}"
+	def dataSetter(value)
+		target = @node.attributes["target"]
+		return "#{@var}.#{target}=#{value}"
+	end
+	def dataGetter()
+		target = @node.attributes["target"]
+		return "#{@var}.#{target}"
 	end
 end
 
 class Walker
 
-	def term(graft, var, node, accessor) # for attribute and property
+	def term(graft, node, accessor) # for attribute and property
 		name = node.attributes["name"]
 		order = node.attributes["order"]
 		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
@@ -74,8 +82,8 @@ class Walker
 			end
 			@names.add(name)
 			@proc.puts "\tObject.defineProperty(#{graft}, '#{name}',{"
-			@proc.puts "\t\tset:function(v){#{accessor.dataSetter(var, node, 'v')};},"
-			@proc.puts "\t\tget:function(){return #{accessor.dataGetter(var, node)};}"
+			@proc.puts "\t\tset:function(v){#{accessor.dataSetter('v')};},"
+			@proc.puts "\t\tget:function(){return #{accessor.dataGetter()};}"
 			@proc.puts "\t});"
 			if order
 				i = order.to_i
@@ -140,11 +148,11 @@ class Walker
 				end
 				@names.add(name)
 				@proc.puts "\tObject.defineProperty(#{graft}, '#{name}',{"
-				@proc.puts "\t\tset:function(v){m#{name}=v;#{accessor.dataSetter(var, node, composition)};},"
+				@proc.puts "\t\tset:function(v){m#{name}=v;#{accessor.dataSetter(composition)};},"
 				@proc.puts "\t\tget:function(){return m#{name};}"
 				@proc.puts "\t});"
 			end
-			@proc.puts "\t#{accessor.dataSetter(var, node, composition)};"
+			@proc.puts "\t#{accessor.dataSetter(composition)};"
 		end
 	end
 
@@ -228,9 +236,9 @@ class Walker
 						@proc.puts "\t\tget:function(){return #{var};}"
 						@proc.puts "\t});"
 					elsif child.name == "attribute"
-						term(graft, var, child, AttributeAccessor.new())
+						term(graft, child, AttributeAccessor.new(var, child))
 					elsif child.name == "property" 
-						term(graft, var, child, PropertyAccessor.new())
+						term(graft, child, PropertyAccessor.new(var, child))
 					else
 						raise "Error: unknown stasc tag at #{child.line_num}"
 					end
