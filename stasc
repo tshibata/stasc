@@ -157,48 +157,67 @@ class Format
 	end
 end
 
-class Walker
+class NamedValue
 
-	def term(graft, node, accessor) # for attribute and property
-		name = node.attributes["name"]
-		order = node.attributes["order"]
-		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
-		if name
-			if children.size != 0
+	def initialize(node, accessor)
+		@name = node.attributes["name"]
+		@order = node.attributes["order"]
+		@children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
+		@accessor = accessor
+	end
+
+	def output(args, names, proc, graft)
+		if @name
+			if @children.size != 0
 				raise "Error: named (monolithic) #{node.name} must be empty"
 			end
-			if @names.include?(name)
+			if names.include?(@name)
 				raise "Error: #{name} is defined twice"
 			end
-			@names.add(name)
-			@proc.puts "\tObject.defineProperty(#{graft}, '#{name}',{"
-			@proc.puts "\t\tset:function(v){#{accessor.dataSetter('v')};},"
-			@proc.puts "\t\tget:function(){return #{accessor.dataGetter()};}"
-			@proc.puts "\t});"
-			if order
-				i = order.to_i
-				if @args.include?(i)
+			names.add(@name)
+			proc.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
+			proc.puts "\t\tset:function(v){#{@accessor.dataSetter('v')};},"
+			proc.puts "\t\tget:function(){return #{@accessor.dataGetter()};}"
+			proc.puts "\t});"
+			if @order
+				i = @order.to_i
+				if args.include?(i)
 					raise "Error: argument #{i} is defined twice"
 				end
-				@args.add(i)
-				@proc.puts "\tif(#{i}<arguments.length){"
-				@proc.puts "\t\t#{graft}.#{name}=arguments[#{i}];"
-				@proc.puts "\t}"
+				args.add(i)
+				proc.puts "\tif(#{i}<arguments.length){"
+				proc.puts "\t\t#{graft}.#{@name}=arguments[#{i}];"
+				proc.puts "\t}"
 			end
 		else
-			if order
+			if @order
 				raise "Error: no order of nameless (composite) #{node.name}"
 			end
-			if children.size != 1
+			if @children.size != 1
 				raise "Error: #{node.name} can contain only one format"
 			end
-			if children[0].namespaces.namespace.href != $ns or children[0].name != "format"
+			if @children[0].namespaces.namespace.href != $ns or @children[0].name != "format"
 				raise "Error: #{node.name} can contain only one format"
 			end
-			format = Format.new(children[0])
-			format.output(@args, @names, @proc, graft, accessor)
+			format = Format.new(@children[0])
+			format.output(args, names, proc, graft, @accessor)
 		end
 	end
+end
+
+class Attribute < NamedValue
+	def initialize(var, node)
+		super(node, AttributeAccessor.new(var, node))
+	end
+end
+
+class Property < NamedValue
+	def initialize(var, node)
+		super(node, PropertyAccessor.new(var, node))
+	end
+end
+
+class Walker
 
 	def walk(graft, node)
 		case node.node_type
@@ -280,9 +299,11 @@ class Walker
 						@proc.puts "\t\tget:function(){return #{var};}"
 						@proc.puts "\t});"
 					elsif child.name == "attribute"
-						term(graft, child, AttributeAccessor.new(var, child))
+						attribute = Attribute.new(var, child)
+						attribute.output(@args, @names, @proc, graft)
 					elsif child.name == "property" 
-						term(graft, child, PropertyAccessor.new(var, child))
+						property = Property.new(var, child)
+						property.output(@args, @names, @proc, graft)
 					else
 						raise "Error: unknown stasc tag at #{child.line_num}"
 					end
