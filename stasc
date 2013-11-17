@@ -219,9 +219,9 @@ end
 
 class Bond
 
-	def initialize(var, node)
+	def initialize(var, parent)
 		@var = var
-		@name = node.attributes["name"]
+		@name = parent.attributes["name"]
 	end
 
 	def output(names, proc, graft)
@@ -237,28 +237,28 @@ end
 
 class Plug
 
-	def initialize(var, node, child)
+	def initialize(var, parent, node)
 		@var = var
+		@parent = parent
 		@node = node
-		@child = child
 	end
 
 	def output(walker, names, proc, graft)
-		if $empty_tags.include?(@node.name.downcase)
-			puts "Warning: #{node.name} should be empty (line #{node.line_num})"
+		if $empty_tags.include?(@parent.name.downcase)
+			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
 		end
 		jsdom = nil
-		@child.each_element do |element|
+		@node.each_element do |element|
 			if jsdom != nil
-				raise "Error: more than one element in a plug at #{child.line_num}"
+				raise "Error: more than one element in a plug at #{@node.line_num}"
 			end
 			jsdom = walker.walk(nil, element)
 		end
 		if jsdom == nil
-			raise "Error: no element in a plug at #{child.line_num}"
+			raise "Error: no element in a plug at #{@node.line_num}"
 		end
-		name = child.attributes["name"]
-		order = child.attributes["order"]
+		name = @node.attributes["name"]
+		order = @node.attributes["order"]
 		if names.include?(name)
 			raise "Error: #{name} is defined twice"
 		end
