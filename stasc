@@ -164,7 +164,7 @@ class NamedValue
 		@accessor = accessor
 	end
 
-	def output(walker, var, next_var, args, names, proc, graft)
+	def output(var, next_var, args, names, proc, graft)
 		if @name
 			if @children.size != 0
 				raise "Error: named (monolithic) #{node.name} must be empty"
@@ -222,7 +222,7 @@ class Bond
 		@name = node.attributes["name"]
 	end
 
-	def output(walker, var, next_var, args, names, proc, graft)
+	def output(var, next_var, args, names, proc, graft)
 		if names.include?(@name)
 			raise "Error: #{@name} is defined twice"
 		end
@@ -241,7 +241,7 @@ class Plug
 		@node = node
 	end
 
-	def output(walker, var, next_var, args, names, proc, graft)
+	def output(var, next_var, args, names, proc, graft)
 		if $empty_tags.include?(@parent.name.downcase)
 			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
 		end
@@ -252,7 +252,8 @@ class Plug
 			raise "Error: more than one element in a plug at #{@node.line_num}"
 		end
 		child_var = next_var
-		next_var = walker.walk(next_var, nil, children[0]) # FIXME what about text node?
+		element = Element.new(@parent, children[0])
+		next_var = element.output(var, next_var, args, names, proc, graft)
 		name = @node.attributes["name"]
 		order = @node.attributes["order"]
 		if names.include?(name)
@@ -287,7 +288,7 @@ class Text
 		@text.gsub!(/'/) {"\\'"};
 	end
 
-	def output(walker, var, next_var, args, names, proc, graft)
+	def output(var, next_var, args, names, proc, graft)
 		if not @text.empty? # FIXME: option
 			proc.puts "\t#{var}.appendChild(document.createTextNode('#{@text}'));"
 		end
@@ -302,84 +303,59 @@ class Element
 		@node = node
 	end
 
-	def output(walker, var, next_var, args, names, proc, graft)
-		if $empty_tags.include?(@parent.name.downcase)
+	def output(var, next_var, args, names, proc, graft)
+		if @parent and $empty_tags.include?(@parent.name.downcase)
 			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
 		end
 		child_var = next_var
-		next_var = walker.walk(next_var, graft, @node)
-		proc.puts "\t#{var}.appendChild(n#{child_var});"
-		return next_var
-	end
-end
-
-class Walker
-
-	def walk(next_var, graft, node)
 		var = "n#{next_var}"
 		next_var = next_var + 1
 		if not graft
 			graft = var;
 		end
-		nodeNS = node.namespaces.namespace
+		nodeNS = @node.namespaces.namespace
 		if nodeNS
-			@proc.puts "\tvar #{var}=document.createElementNS('#{nodeNS.href}','#{node.name}');"
+			proc.puts "\tvar #{var}=document.createElementNS('#{nodeNS.href}','#{@node.name}');"
 		else
-			@proc.puts "\tvar #{var}=document.createElement('#{node.name}');"
+			proc.puts "\tvar #{var}=document.createElement('#{@node.name}');"
 		end
-		node.attributes.each do |attribute|
+		@node.attributes.each do |attribute|
 			attrNS = attribute.namespaces.namespace
 			if attrNS
-				@proc.puts "\t#{var}.setAttributeNS('#{attrNS.href}','#{attribute.name}','#{attribute.value}');"
+				proc.puts "\t#{var}.setAttributeNS('#{attrNS.href}','#{attribute.name}','#{attribute.value}');"
 			else
-				@proc.puts "\t#{var}.setAttribute('#{attribute.name}','#{attribute.value}');"
+				proc.puts "\t#{var}.setAttribute('#{attribute.name}','#{attribute.value}');"
 			end
 		end
-		node.each do |child|
+		@node.each do |child|
 			childNS = child.namespaces.namespace
 			if childNS && childNS.href == $ns
 				if child.name == "plug"
-					plug = Plug.new(node, child)
-					next_var = plug.output(self, var, next_var, @args, @names, @proc, graft)
+					plug = Plug.new(@node, child)
+					next_var = plug.output(var, next_var, args, names, proc, graft)
 				elsif child.name == "bond"
 					bond = Bond.new(child)
-					next_var = bond.output(self, var, next_var, @args, @names, @proc, graft)
+					next_var = bond.output(var, next_var, args, names, proc, graft)
 				elsif child.name == "attribute"
 					attribute = Attribute.new(child)
-					next_var = attribute.output(self, var, next_var, @args, @names, @proc, graft)
+					next_var = attribute.output(var, next_var, args, names, proc, graft)
 				elsif child.name == "property" 
 					property = Property.new(child)
-					next_var = property.output(self, var, next_var, @args, @names, @proc, graft)
+					next_var = property.output(var, next_var, args, names, proc, graft)
 				else
 					raise "Error: unknown stasc tag at #{child.line_num}"
 				end
 			elsif child.node_type == LibXML::XML::Node::TEXT_NODE
 				text = Text.new(child)
-				next_var = text.output(self, var, next_var, @args, @names, @proc, graft)
+				next_var = text.output(var, next_var, args, names, proc, graft)
 			elsif child.node_type == LibXML::XML::Node::ELEMENT_NODE
-				element = Element.new(node, child)
-				next_var = element.output(self, var, next_var, @args, @names, @proc, graft)
+				element = Element.new(@node, child)
+				child_var = next_var
+				next_var = element.output(var, next_var, args, names, proc, graft)
+				proc.puts "\t#{var}.appendChild(n#{child_var});"
 			end
 		end
 		return next_var
-	end
-
-	def initialize(root)
-		@names = Set.new
-		@args = Set.new
-		@proc = StringIO.new()
-		walk(0, nil, root)
-		if not (@args.sort == Array(0...@args.size))
-			raise "Unused argument(s)"
-		end
-	end
-
-	def var()
-		return "n0"
-	end
-
-	def proc()
-		return @proc.string
 	end
 end
 
@@ -430,9 +406,16 @@ begin
 			sym = File.basename(src, ".ss.xml")
 			doc = XML::Document.file(src)
 			buf.puts "#{$prefix}#{sym}=function(){"
-			walker = Walker.new(doc.root)
-			buf.puts walker.proc
-			buf.puts "\treturn #{walker.var};"
+			names = Set.new()
+			args = Set.new()
+			io = StringIO.new()
+			element = Element.new(nil, doc.root)
+			element.output("", 0, args, names, io, nil)
+			if not (args.sort == Array(0...args.size))
+				raise "Unused argument(s)"
+			end
+			buf.puts io.string
+			buf.puts "\treturn n0;"
 			buf.puts "};"
 		rescue Exception => exception
 			raise "#{exception} in #{src}"
