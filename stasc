@@ -219,9 +219,9 @@ end
 
 class Bond
 
-	def initialize(var, parent)
+	def initialize(var, node)
 		@var = var
-		@name = parent.attributes["name"]
+		@name = node.attributes["name"]
 	end
 
 	def output(names, proc, graft)
@@ -247,7 +247,7 @@ class Plug
 		if $empty_tags.include?(@parent.name.downcase)
 			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
 		end
-		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
+		children = @node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
 		if children.size == 0
 			raise "Error: no element in a plug at #{@node.line_num}"
 		elsif 1 < children.size
@@ -321,9 +321,9 @@ class Walker
 			if childNS && childNS.href == $ns
 				if child.name == "plug"
 					plug = Plug.new(var, node, child)
-					plug.output(this, @args, @names, @proc, graft)
+					plug.output(self, @args, @names, @proc, graft)
 				elsif child.name == "bond"
-					bond = Bond.new(var, node)
+					bond = Bond.new(var, child)
 					bond.output(@names, @proc, graft)
 				elsif child.name == "attribute"
 					attribute = Attribute.new(var, child)
