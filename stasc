@@ -25,50 +25,6 @@ $empty_tags = [
 
 $ns = "http://tshibata.github.io/2013/stasc"
 
-class AttributeAccessor
-
-	def initialize(node)
-		target = node.attributes["target"]
-		if /([^:]*):(.*)/ =~ target
-			@namespace = node.namespaces.find_by_prefix($1).href
-			@localname = $2
-		else
-			@name = target
-		end
-	end
-
-	def dataSetter(var, value)
-		if @namespace
-			return "#{var}.setAttributeNS('#{@namespace}','#{@localname}',#{value})"
-		else
-			return "#{var}.setAttribute('#{@name}',#{value})"
-		end
-	end
-
-	def dataGetter(var)
-		if @namespace
-			return "#{var}.getAttributeNS('#{@namespace}','#{@localname}')"
-		else
-			return "#{var}.getAttribute('#{@name}')"
-		end
-	end
-end
-
-class PropertyAccessor
-
-	def initialize(node)
-		@name = node.attributes["target"]
-	end
-
-	def dataSetter(var, value)
-		return "#{var}.#{@name}=#{value}"
-	end
-
-	def dataGetter(var)
-		return "#{var}.#{@name}"
-	end
-end
-
 class Item
 
 	def initialize(name, order, text)
@@ -161,10 +117,9 @@ end
 
 class NamedValue
 
-	def initialize(node, accessor)
+	def initialize(node)
 		@name = node.attributes["name"]
 		@order = node.attributes["order"]
-		@accessor = accessor
 		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
 		if @name
 			if children.size != 0
@@ -187,12 +142,12 @@ class NamedValue
 	def output(var, next_var, args, names, proc, graft)
 		if @name
 			if names.include?(@name)
-				raise "Error: #{name} is defined twice"
+				raise "Error: #{@name} is defined twice"
 			end
 			names.add(@name)
 			proc.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
-			proc.puts "\t\tset:function(v){#{@accessor.dataSetter(var,'v')};},"
-			proc.puts "\t\tget:function(){return #{@accessor.dataGetter(var)};}"
+			proc.puts "\t\tset:function(v){#{dataSetter(var,'v')};},"
+			proc.puts "\t\tget:function(){return #{dataGetter(var)};}"
 			proc.puts "\t});"
 			if @order
 				i = @order.to_i
@@ -205,21 +160,55 @@ class NamedValue
 				proc.puts "\t}"
 			end
 		else
-			@format.output(var, args, names, proc, graft, @accessor)
+			@format.output(var, args, names, proc, graft, self)
 		end
 		return next_var
 	end
 end
 
 class Attribute < NamedValue
+
 	def initialize(node)
-		super(node, AttributeAccessor.new(node))
+		super(node)
+		target = node.attributes["target"]
+		if /([^:]*):(.*)/ =~ target
+			@namespace = node.namespaces.find_by_prefix($1).href
+			@localname = $2
+		else
+			@target = target
+		end
+	end
+
+	def dataSetter(var, value)
+		if @namespace
+			return "#{var}.setAttributeNS('#{@namespace}','#{@localname}',#{value})"
+		else
+			return "#{var}.setAttribute('#{@target}',#{value})"
+		end
+	end
+
+	def dataGetter(var)
+		if @namespace
+			return "#{var}.getAttributeNS('#{@namespace}','#{@localname}')"
+		else
+			return "#{var}.getAttribute('#{@target}')"
+		end
 	end
 end
 
 class Property < NamedValue
+
 	def initialize(node)
-		super(node, PropertyAccessor.new(node))
+		super(node)
+		@target = node.attributes["target"]
+	end
+
+	def dataSetter(var, value)
+		return "#{var}.#{@target}=#{value}"
+	end
+
+	def dataGetter(var)
+		return "#{var}.#{@target}"
 	end
 end
 
