@@ -26,42 +26,46 @@ $empty_tags = [
 $ns = "http://tshibata.github.io/2013/stasc"
 
 class AttributeAccessor
+
 	def initialize(node)
-		@node = node
-	end
-	def dataSetter(var, value)
-		target = @node.attributes["target"]
+		target = node.attributes["target"]
 		if /([^:]*):(.*)/ =~ target
-			ns = @node.namespaces.find_by_prefix($1)
-			name = $2
-			return "#{var}.setAttributeNS('#{ns.href}','#{name}',#{value})"
+			@namespace = node.namespaces.find_by_prefix($1).href
+			@localname = $2
 		else
-			return "#{var}.setAttribute('#{target}',#{value})"
+			@name = target
 		end
 	end
-	def dataGetter(var)
-		target = @node.attributes["target"]
-		if /([^:]*):(.*)/ =~ target
-			ns = @node.namespaces.find_by_prefix($1)
-			name = $2
-			return "#{var}.getAttributeNS('#{ns.href}','#{name}')"
+
+	def dataSetter(var, value)
+		if @namespace
+			return "#{var}.setAttributeNS('#{@namespace}','#{@localname}',#{value})"
 		else
-			return "#{var}.getAttribute('#{target}')"
+			return "#{var}.setAttribute('#{@name}',#{value})"
+		end
+	end
+
+	def dataGetter(var)
+		if @namespace
+			return "#{var}.getAttributeNS('#{@namespace}','#{@localname}')"
+		else
+			return "#{var}.getAttribute('#{@name}')"
 		end
 	end
 end
 
 class PropertyAccessor
+
 	def initialize(node)
-		@node = node
+		@name = node.attributes["target"]
 	end
+
 	def dataSetter(var, value)
-		target = @node.attributes["target"]
-		return "#{var}.#{target}=#{value}"
+		return "#{var}.#{@name}=#{value}"
 	end
+
 	def dataGetter(var)
-		target = @node.attributes["target"]
-		return "#{var}.#{target}"
+		return "#{var}.#{@name}"
 	end
 end
 
