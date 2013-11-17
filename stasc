@@ -287,11 +287,9 @@ class Text
 		@text.gsub!(/'/) {"\\'"};
 	end
 
-	def output()
-		if @text.empty? # FIXME: option
-			return nil
-		else
-			return "document.createTextNode('#{@text}')"
+	def output(var, proc)
+		if not @text.empty? # FIXME: option
+			proc.puts "\t#{var}.appendChild(document.createTextNode('#{@text}'));"
 		end
 	end
 end
@@ -299,61 +297,54 @@ end
 class Walker
 
 	def walk(graft, node)
-		case node.node_type
-		when LibXML::XML::Node::TEXT_NODE
-			text = Text.new(node)
-			return text.output()
-		when LibXML::XML::Node::ELEMENT_NODE
-			var = "n#{@last_var}"
-			@last_var = @last_var + 1
-			if not graft
-				graft = var;
-			end
-			nodeNS = node.namespaces.namespace
-			if nodeNS
-				@proc.puts "\tvar #{var}=document.createElementNS('#{nodeNS.href}','#{node.name}');"
-			else
-				@proc.puts "\tvar #{var}=document.createElement('#{node.name}');"
-			end
-			node.attributes.each do |attribute|
-				attrNS = attribute.namespaces.namespace
-				if attrNS
-					@proc.puts "\t#{var}.setAttributeNS('#{attrNS.href}','#{attribute.name}','#{attribute.value}');"
-				else
-					@proc.puts "\t#{var}.setAttribute('#{attribute.name}','#{attribute.value}');"
-				end
-			end
-			node.each do |child|
-				childNS = child.namespaces.namespace
-				if childNS && childNS.href == $ns
-					if child.name == "plug"
-						plug = Plug.new(var, node, child)
-						plug.output(this, @args, @names, @proc, graft)
-					elsif child.name == "bond"
-						bond = Bond.new(var, node)
-						bond.output(@names, @proc, graft)
-					elsif child.name == "attribute"
-						attribute = Attribute.new(var, child)
-						attribute.output(@args, @names, @proc, graft)
-					elsif child.name == "property" 
-						property = Property.new(var, child)
-						property.output(@args, @names, @proc, graft)
-					else
-						raise "Error: unknown stasc tag at #{child.line_num}"
-					end
-				else
-					jsdom = walk(graft, child)
-					if jsdom
-						if $empty_tags.include?(node.name.downcase)
-							puts "Warning: #{node.name} should be empty (line #{node.line_num})"
-						end
-						@proc.puts "\t#{var}.appendChild(#{jsdom});"
-					end
-				end
-			end
-			return var
+		var = "n#{@last_var}"
+		@last_var = @last_var + 1
+		if not graft
+			graft = var;
 		end
-		return nil
+		nodeNS = node.namespaces.namespace
+		if nodeNS
+			@proc.puts "\tvar #{var}=document.createElementNS('#{nodeNS.href}','#{node.name}');"
+		else
+			@proc.puts "\tvar #{var}=document.createElement('#{node.name}');"
+		end
+		node.attributes.each do |attribute|
+			attrNS = attribute.namespaces.namespace
+			if attrNS
+				@proc.puts "\t#{var}.setAttributeNS('#{attrNS.href}','#{attribute.name}','#{attribute.value}');"
+			else
+				@proc.puts "\t#{var}.setAttribute('#{attribute.name}','#{attribute.value}');"
+			end
+		end
+		node.each do |child|
+			childNS = child.namespaces.namespace
+			if childNS && childNS.href == $ns
+				if child.name == "plug"
+					plug = Plug.new(var, node, child)
+					plug.output(this, @args, @names, @proc, graft)
+				elsif child.name == "bond"
+					bond = Bond.new(var, node)
+					bond.output(@names, @proc, graft)
+				elsif child.name == "attribute"
+					attribute = Attribute.new(var, child)
+					attribute.output(@args, @names, @proc, graft)
+				elsif child.name == "property" 
+					property = Property.new(var, child)
+					property.output(@args, @names, @proc, graft)
+				else
+					raise "Error: unknown stasc tag at #{child.line_num}"
+				end
+			elsif child.node_type == LibXML::XML::Node::TEXT_NODE
+				text = Text.new(child)
+				text.output(var, @proc)
+			elsif child.node_type == LibXML::XML::Node::ELEMENT_NODE
+				if $empty_tags.include?(node.name.downcase)
+					puts "Warning: #{node.name} should be empty (line #{node.line_num})"
+				end
+				@proc.puts "\t#{var}.appendChild(#{walk(graft, child)});"
+			end
+		end
+		return var
 	end
 
 	def initialize(root)
