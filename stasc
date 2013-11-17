@@ -244,36 +244,34 @@ end
 class Plug
 
 	def initialize(parent, node)
-		@parent = parent
-		@node = node
+		@name = node.attributes["name"]
+		@order = node.attributes["order"]
+		if $empty_tags.include?(parent.name.downcase)
+			puts "Warning: #{parent.name} should be empty (line #{parent.line_num})"
+		end
+		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
+		if children.size == 0
+			raise "Error: no element in a plug at #{node.line_num}"
+		elsif 1 < children.size
+			raise "Error: more than one element in a plug at #{node.line_num}"
+		end
+		@element = Element.new(parent, children[0])
 	end
 
 	def output(var, next_var, args, names, proc, graft)
-		if $empty_tags.include?(@parent.name.downcase)
-			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
-		end
-		children = @node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
-		if children.size == 0
-			raise "Error: no element in a plug at #{@node.line_num}"
-		elsif 1 < children.size
-			raise "Error: more than one element in a plug at #{@node.line_num}"
-		end
 		child_var = next_var
-		element = Element.new(@parent, children[0])
-		next_var = element.output(var, next_var, args, names, proc, graft)
-		name = @node.attributes["name"]
-		order = @node.attributes["order"]
-		if names.include?(name)
-			raise "Error: #{name} is defined twice"
+		next_var = @element.output(var, next_var, args, names, proc, graft)
+		if names.include?(@name)
+			raise "Error: #{@name} is defined twice"
 		end
-		names.add(name)
-		proc.puts "\tObject.defineProperty(#{graft},'#{name}',{"
+		names.add(@name)
+		proc.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
 		proc.puts "\t\tset:function(v){#{var}.replaceChild(v,n#{child_var});n#{child_var}=v;},"
 		proc.puts "\t\tget:function(){return n#{child_var};}"
 		proc.puts "\t});"
 		proc.puts "\t#{var}.appendChild(n#{child_var});"
-		if order
-			i = order.to_i
+		if @order
+			i = @order.to_i
 			if args.include?(i)
 				raise "Error: argument #{i} is defined twice"
 			end
