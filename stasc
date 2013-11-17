@@ -292,6 +292,24 @@ class Text
 	end
 end
 
+class Element
+
+	def initialize(parent, node)
+		@parent = parent
+		@node = node
+	end
+
+	def output(walker, var, next_var, args, names, proc, graft)
+		if $empty_tags.include?(@parent.name.downcase)
+			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
+		end
+		child_var = next_var
+		next_var = walker.walk(next_var, graft, @node)
+		proc.puts "\t#{var}.appendChild(n#{child_var});"
+		return next_var
+	end
+end
+
 class Walker
 
 	def walk(next_var, graft, node)
@@ -336,12 +354,8 @@ class Walker
 				text = Text.new(child)
 				text.output(self, var, next_var, @args, @names, @proc, graft)
 			elsif child.node_type == LibXML::XML::Node::ELEMENT_NODE
-				if $empty_tags.include?(node.name.downcase)
-					puts "Warning: #{node.name} should be empty (line #{node.line_num})"
-				end
-				child_var = next_var
-				next_var = walk(next_var, graft, child)
-				@proc.puts "\t#{var}.appendChild(n#{child_var});"
+				element = Element.new(node, child)
+				next_var = element.output(self, var, next_var, @args, @names, @proc, graft)
 			end
 		end
 		return next_var
