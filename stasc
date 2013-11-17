@@ -200,6 +200,7 @@ class NamedValue
 			format = Format.new(@children[0])
 			format.output(var, args, names, proc, graft, @accessor)
 		end
+		return next_var
 	end
 end
 
@@ -229,6 +230,7 @@ class Bond
 		proc.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
 		proc.puts "\t\tget:function(){return #{var};}"
 		proc.puts "\t});"
+		return next_var
 	end
 end
 
@@ -289,6 +291,7 @@ class Text
 		if not @text.empty? # FIXME: option
 			proc.puts "\t#{var}.appendChild(document.createTextNode('#{@text}'));"
 		end
+		return next_var
 	end
 end
 
@@ -340,19 +343,19 @@ class Walker
 					next_var = plug.output(self, var, next_var, @args, @names, @proc, graft)
 				elsif child.name == "bond"
 					bond = Bond.new(child)
-					bond.output(self, var, next_var, @args, @names, @proc, graft)
+					next_var = bond.output(self, var, next_var, @args, @names, @proc, graft)
 				elsif child.name == "attribute"
 					attribute = Attribute.new(child)
-					attribute.output(self, var, next_var, @args, @names, @proc, graft)
+					next_var = attribute.output(self, var, next_var, @args, @names, @proc, graft)
 				elsif child.name == "property" 
 					property = Property.new(child)
-					property.output(self, var, next_var, @args, @names, @proc, graft)
+					next_var = property.output(self, var, next_var, @args, @names, @proc, graft)
 				else
 					raise "Error: unknown stasc tag at #{child.line_num}"
 				end
 			elsif child.node_type == LibXML::XML::Node::TEXT_NODE
 				text = Text.new(child)
-				text.output(self, var, next_var, @args, @names, @proc, graft)
+				next_var = text.output(self, var, next_var, @args, @names, @proc, graft)
 			elsif child.node_type == LibXML::XML::Node::ELEMENT_NODE
 				element = Element.new(node, child)
 				next_var = element.output(self, var, next_var, @args, @names, @proc, graft)
