@@ -164,7 +164,7 @@ class NamedValue
 		@accessor = accessor
 	end
 
-	def output(var, args, names, proc, graft)
+	def output(walker, var, next_var, args, names, proc, graft)
 		if @name
 			if @children.size != 0
 				raise "Error: named (monolithic) #{node.name} must be empty"
@@ -221,7 +221,7 @@ class Bond
 		@name = node.attributes["name"]
 	end
 
-	def output(var, names, proc, graft)
+	def output(walker, var, next_var, args, names, proc, graft)
 		if names.include?(@name)
 			raise "Error: #{@name} is defined twice"
 		end
@@ -285,7 +285,7 @@ class Text
 		@text.gsub!(/'/) {"\\'"};
 	end
 
-	def output(var, proc)
+	def output(walker, var, next_var, args, names, proc, graft)
 		if not @text.empty? # FIXME: option
 			proc.puts "\t#{var}.appendChild(document.createTextNode('#{@text}'));"
 		end
@@ -322,19 +322,19 @@ class Walker
 					next_var = plug.output(self, var, next_var, @args, @names, @proc, graft)
 				elsif child.name == "bond"
 					bond = Bond.new(child)
-					bond.output(var, @names, @proc, graft)
+					bond.output(self, var, next_var, @args, @names, @proc, graft)
 				elsif child.name == "attribute"
 					attribute = Attribute.new(child)
-					attribute.output(var, @args, @names, @proc, graft)
+					attribute.output(self, var, next_var, @args, @names, @proc, graft)
 				elsif child.name == "property" 
 					property = Property.new(child)
-					property.output(var, @args, @names, @proc, graft)
+					property.output(self, var, next_var, @args, @names, @proc, graft)
 				else
 					raise "Error: unknown stasc tag at #{child.line_num}"
 				end
 			elsif child.node_type == LibXML::XML::Node::TEXT_NODE
 				text = Text.new(child)
-				text.output(var, @proc)
+				text.output(self, var, next_var, @args, @names, @proc, graft)
 			elsif child.node_type == LibXML::XML::Node::ELEMENT_NODE
 				if $empty_tags.include?(node.name.downcase)
 					puts "Warning: #{node.name} should be empty (line #{node.line_num})"
