@@ -255,7 +255,7 @@ class Plug
 
 	def output(var, next_var, args, names, proc, graft)
 		child_var = next_var
-		next_var = @element.output(var, next_var, args, names, proc, graft)
+		next_var = @element.output(var, next_var, args, names, proc, nil)
 		if names.include?(@name)
 			raise "Error: #{@name} is defined twice"
 		end
