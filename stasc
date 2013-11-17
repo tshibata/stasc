@@ -247,16 +247,13 @@ class Plug
 		if $empty_tags.include?(@parent.name.downcase)
 			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
 		end
-		jsdom = nil
-		@node.each_element do |element|
-			if jsdom != nil
-				raise "Error: more than one element in a plug at #{@node.line_num}"
-			end
-			jsdom = walker.walk(nil, element)
-		end
-		if jsdom == nil
+		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
+		if children.size == 0
 			raise "Error: no element in a plug at #{@node.line_num}"
+		elsif 1 < children.size
+			raise "Error: more than one element in a plug at #{@node.line_num}"
 		end
+		jsdom = walker.walk(nil, children[0]) # FIXME what about text node?
 		name = @node.attributes["name"]
 		order = @node.attributes["order"]
 		if names.include?(name)
