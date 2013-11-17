@@ -26,44 +26,42 @@ $empty_tags = [
 $ns = "http://tshibata.github.io/2013/stasc"
 
 class AttributeAccessor
-	def initialize(var, node)
-		@var = var
+	def initialize(node)
 		@node = node
 	end
-	def dataSetter(value)
+	def dataSetter(var, value)
 		target = @node.attributes["target"]
 		if /([^:]*):(.*)/ =~ target
 			ns = @node.namespaces.find_by_prefix($1)
 			name = $2
-			return "#{@var}.setAttributeNS('#{ns.href}','#{name}',#{value})"
+			return "#{var}.setAttributeNS('#{ns.href}','#{name}',#{value})"
 		else
-			return "#{@var}.setAttribute('#{target}',#{value})"
+			return "#{var}.setAttribute('#{target}',#{value})"
 		end
 	end
-	def dataGetter()
+	def dataGetter(var)
 		target = @node.attributes["target"]
 		if /([^:]*):(.*)/ =~ target
 			ns = @node.namespaces.find_by_prefix($1)
 			name = $2
-			return "#{@var}.getAttributeNS('#{ns.href}','#{name}')"
+			return "#{var}.getAttributeNS('#{ns.href}','#{name}')"
 		else
-			return "#{@var}.getAttribute('#{target}')"
+			return "#{var}.getAttribute('#{target}')"
 		end
 	end
 end
 
 class PropertyAccessor
-	def initialize(var, node)
-		@var = var
+	def initialize(node)
 		@node = node
 	end
-	def dataSetter(value)
+	def dataSetter(var, value)
 		target = @node.attributes["target"]
-		return "#{@var}.#{target}=#{value}"
+		return "#{var}.#{target}=#{value}"
 	end
-	def dataGetter()
+	def dataGetter(var)
 		target = @node.attributes["target"]
-		return "#{@var}.#{target}"
+		return "#{var}.#{target}"
 	end
 end
 
@@ -83,7 +81,7 @@ class Item
 		return "m#{@name}"
 	end
 
-	def output(args, names, proc, graft, accessor, composition)
+	def output(var, args, names, proc, graft, accessor, composition)
 		proc.puts "\tvar m#{@name}='#{@text}';"
 		if @order
 			i = @order.to_i
@@ -97,7 +95,7 @@ class Item
 		end
 		names.add(@name)
 		proc.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
-		proc.puts "\t\tset:function(v){m#{@name}=v;#{accessor.dataSetter(composition)};},"
+		proc.puts "\t\tset:function(v){m#{@name}=v;#{accessor.dataSetter(var,composition)};},"
 		proc.puts "\t\tget:function(){return m#{@name};}"
 		proc.puts "\t});"
 	end
@@ -121,7 +119,7 @@ class StaticItem
 		return "'#{text}'"
 	end
 
-	def output(args, names, proc, graft, accessor, composition)
+	def output(var, args, names, proc, graft, accessor, composition)
 	end
 end
 
@@ -149,11 +147,11 @@ class Format
 		@composition = @items.map{|item| item.getValue()}.join("+")
 	end
 
-	def output(args, names, proc, graft, accessor)
+	def output(var, args, names, proc, graft, accessor)
 		@items.each do |item|
-			item.output(args, names, proc, graft, accessor, @composition)
+			item.output(var, args, names, proc, graft, accessor, @composition)
 		end
-		proc.puts "\t#{accessor.dataSetter(@composition)};"
+		proc.puts "\t#{accessor.dataSetter(var,@composition)};"
 	end
 end
 
@@ -166,7 +164,7 @@ class NamedValue
 		@accessor = accessor
 	end
 
-	def output(args, names, proc, graft)
+	def output(var, args, names, proc, graft)
 		if @name
 			if @children.size != 0
 				raise "Error: named (monolithic) #{node.name} must be empty"
@@ -176,8 +174,8 @@ class NamedValue
 			end
 			names.add(@name)
 			proc.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
-			proc.puts "\t\tset:function(v){#{@accessor.dataSetter('v')};},"
-			proc.puts "\t\tget:function(){return #{@accessor.dataGetter()};}"
+			proc.puts "\t\tset:function(v){#{@accessor.dataSetter(var,'v')};},"
+			proc.puts "\t\tget:function(){return #{@accessor.dataGetter(var)};}"
 			proc.puts "\t});"
 			if @order
 				i = @order.to_i
@@ -200,50 +198,48 @@ class NamedValue
 				raise "Error: #{node.name} can contain only one format"
 			end
 			format = Format.new(@children[0])
-			format.output(args, names, proc, graft, @accessor)
+			format.output(var, args, names, proc, graft, @accessor)
 		end
 	end
 end
 
 class Attribute < NamedValue
-	def initialize(var, node)
-		super(node, AttributeAccessor.new(var, node))
+	def initialize(node)
+		super(node, AttributeAccessor.new(node))
 	end
 end
 
 class Property < NamedValue
-	def initialize(var, node)
-		super(node, PropertyAccessor.new(var, node))
+	def initialize(node)
+		super(node, PropertyAccessor.new(node))
 	end
 end
 
 class Bond
 
-	def initialize(var, node)
-		@var = var
+	def initialize(node)
 		@name = node.attributes["name"]
 	end
 
-	def output(names, proc, graft)
+	def output(var, names, proc, graft)
 		if names.include?(@name)
 			raise "Error: #{@name} is defined twice"
 		end
 		names.add(@name)
 		proc.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
-		proc.puts "\t\tget:function(){return #{@var};}"
+		proc.puts "\t\tget:function(){return #{var};}"
 		proc.puts "\t});"
 	end
 end
 
 class Plug
 
-	def initialize(var, parent, node)
-		@var = var
+	def initialize(parent, node)
 		@parent = parent
 		@node = node
 	end
 
-	def output(walker, args, names, proc, graft)
+	def output(walker, var, args, names, proc, graft)
 		if $empty_tags.include?(@parent.name.downcase)
 			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
 		end
@@ -261,10 +257,10 @@ class Plug
 		end
 		names.add(name)
 		proc.puts "\tObject.defineProperty(#{graft},'#{name}',{"
-		proc.puts "\t\tset:function(v){#{@var}.replaceChild(v,#{jsdom});#{jsdom}=v;},"
+		proc.puts "\t\tset:function(v){#{var}.replaceChild(v,#{jsdom});#{jsdom}=v;},"
 		proc.puts "\t\tget:function(){return #{jsdom};}"
 		proc.puts "\t});"
-		proc.puts "\t#{@var}.appendChild(#{jsdom});"
+		proc.puts "\t#{var}.appendChild(#{jsdom});"
 		if order
 			i = order.to_i
 			if args.include?(i)
@@ -320,17 +316,17 @@ class Walker
 			childNS = child.namespaces.namespace
 			if childNS && childNS.href == $ns
 				if child.name == "plug"
-					plug = Plug.new(var, node, child)
-					plug.output(self, @args, @names, @proc, graft)
+					plug = Plug.new(node, child)
+					plug.output(self, var, @args, @names, @proc, graft)
 				elsif child.name == "bond"
-					bond = Bond.new(var, child)
-					bond.output(@names, @proc, graft)
+					bond = Bond.new(child)
+					bond.output(var, @names, @proc, graft)
 				elsif child.name == "attribute"
-					attribute = Attribute.new(var, child)
-					attribute.output(@args, @names, @proc, graft)
+					attribute = Attribute.new(child)
+					attribute.output(var, @args, @names, @proc, graft)
 				elsif child.name == "property" 
-					property = Property.new(var, child)
-					property.output(@args, @names, @proc, graft)
+					property = Property.new(child)
+					property.output(var, @args, @names, @proc, graft)
 				else
 					raise "Error: unknown stasc tag at #{child.line_num}"
 				end
