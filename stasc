@@ -281,20 +281,31 @@ class Plug
 	end
 end
 
+class Text
+
+	def initialize(node)
+		@text = node.content.strip
+		@text.gsub!(/\s+/," ");
+		@text.gsub!(/\\/) {"\\\\"};
+		@text.gsub!(/'/) {"\\'"};
+	end
+
+	def output()
+		if @text.empty? # FIXME: option
+			return nil
+		else
+			return "document.createTextNode('#{@text}')"
+		end
+	end
+end
+
 class Walker
 
 	def walk(graft, node)
 		case node.node_type
 		when LibXML::XML::Node::TEXT_NODE
-			text = node.content.strip
-			text.gsub!(/\s+/," ");
-			text.gsub!(/\\/) {"\\\\"};
-			text.gsub!(/'/) {"\\'"};
-			if text.empty? # FIXME: option
-				return nil
-			else
-				return "document.createTextNode('#{text}')"
-			end
+			text = Text.new(node)
+			return text.output()
 		when LibXML::XML::Node::ELEMENT_NODE
 			var = "n#{@last_var}"
 			@last_var = @last_var + 1
