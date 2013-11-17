@@ -235,6 +235,52 @@ class Bond
 	end
 end
 
+class Plug
+
+	def initialize(var, node, child)
+		@var = var
+		@node = node
+		@child = child
+	end
+
+	def output(walker, names, proc, graft)
+		if $empty_tags.include?(@node.name.downcase)
+			puts "Warning: #{node.name} should be empty (line #{node.line_num})"
+		end
+		jsdom = nil
+		@child.each_element do |element|
+			if jsdom != nil
+				raise "Error: more than one element in a plug at #{child.line_num}"
+			end
+			jsdom = walker.walk(nil, element)
+		end
+		if jsdom == nil
+			raise "Error: no element in a plug at #{child.line_num}"
+		end
+		name = child.attributes["name"]
+		order = child.attributes["order"]
+		if names.include?(name)
+			raise "Error: #{name} is defined twice"
+		end
+		names.add(name)
+		proc.puts "\tObject.defineProperty(#{graft},'#{name}',{"
+		proc.puts "\t\tset:function(v){#{@var}.replaceChild(v,#{jsdom});#{jsdom}=v;},"
+		proc.puts "\t\tget:function(){return #{jsdom};}"
+		proc.puts "\t});"
+		proc.puts "\t#{@var}.appendChild(#{jsdom});"
+		if order
+			i = order.to_i
+			if args.include?(i)
+				raise "Error: argument #{i} is defined twice"
+			end
+			args.add(i)
+			proc.puts "\tif(#{i}<arguments.length){"
+			proc.puts "\t\t#{graft}.#{name}=arguments[#{i}];"
+			proc.puts "\t}"
+		end
+	end
+end
+
 class Walker
 
 	def walk(graft, node)
@@ -273,40 +319,8 @@ class Walker
 				childNS = child.namespaces.namespace
 				if childNS && childNS.href == $ns
 					if child.name == "plug"
-						if $empty_tags.include?(node.name.downcase)
-							puts "Warning: #{node.name} should be empty (line #{node.line_num})"
-						end
-						jsdom = nil
-						child.each_element do |element|
-							if jsdom != nil
-								raise "Error: more than one element in a plug at #{child.line_num}"
-							end
-							jsdom = walk(nil, element)
-						end
-						if jsdom == nil
-							raise "Error: no element in a plug at #{child.line_num}"
-						end
-						name = child.attributes["name"]
-						order = child.attributes["order"]
-						if @names.include?(name)
-							raise "Error: #{name} is defined twice"
-						end
-						@names.add(name)
-						@proc.puts "\tObject.defineProperty(#{graft},'#{name}',{"
-						@proc.puts "\t\tset:function(v){#{var}.replaceChild(v,#{jsdom});#{jsdom}=v;},"
-						@proc.puts "\t\tget:function(){return #{jsdom};}"
-						@proc.puts "\t});"
-						@proc.puts "\t#{var}.appendChild(#{jsdom});"
-						if order
-							i = order.to_i
-							if @args.include?(i)
-								raise "Error: argument #{i} is defined twice"
-							end
-							@args.add(i)
-							@proc.puts "\tif(#{i}<arguments.length){"
-							@proc.puts "\t\t#{graft}.#{name}=arguments[#{i}];"
-							@proc.puts "\t}"
-						end
+						plug = Plug.new(var, node, child)
+						plug.output(this, @names, @proc, graft)
 					elsif child.name == "bond"
 						bond = Bond.new(var, node)
 						bond.output(@names, @proc, graft)
