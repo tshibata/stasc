@@ -243,7 +243,7 @@ class Plug
 		@node = node
 	end
 
-	def output(walker, names, proc, graft)
+	def output(walker, args, names, proc, graft)
 		if $empty_tags.include?(@parent.name.downcase)
 			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
 		end
@@ -320,7 +320,7 @@ class Walker
 				if childNS && childNS.href == $ns
 					if child.name == "plug"
 						plug = Plug.new(var, node, child)
-						plug.output(this, @names, @proc, graft)
+						plug.output(this, @args, @names, @proc, graft)
 					elsif child.name == "bond"
 						bond = Bond.new(var, node)
 						bond.output(@names, @proc, graft)
