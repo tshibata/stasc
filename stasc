@@ -272,7 +272,7 @@ class Plug
 			end
 			args.add(i)
 			proc.puts "\tif(#{i}<arguments.length){"
-			proc.puts "\t\t#{graft}.#{name}=arguments[#{i}];"
+			proc.puts "\t\t#{graft}.#{@name}=arguments[#{i}];"
 			proc.puts "\t}"
 		end
 		return next_var
