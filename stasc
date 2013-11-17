@@ -164,15 +164,28 @@ class NamedValue
 	def initialize(node, accessor)
 		@name = node.attributes["name"]
 		@order = node.attributes["order"]
-		@children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
 		@accessor = accessor
+		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
+		if @name
+			if children.size != 0
+				raise "Error: named (monolithic) #{node.name} must be empty"
+			end
+		else
+			if @order
+				raise "Error: no order of nameless (composite) #{node.name}"
+			end
+			if children.size != 1
+				raise "Error: #{node.name} can contain only one format"
+			end
+			if children[0].namespaces.namespace.href != $ns or children[0].name != "format"
+				raise "Error: #{node.name} can contain only one format"
+			end
+			@format = Format.new(children[0])
+		end
 	end
 
 	def output(var, next_var, args, names, proc, graft)
 		if @name
-			if @children.size != 0
-				raise "Error: named (monolithic) #{node.name} must be empty"
-			end
 			if names.include?(@name)
 				raise "Error: #{name} is defined twice"
 			end
@@ -192,17 +205,7 @@ class NamedValue
 				proc.puts "\t}"
 			end
 		else
-			if @order
-				raise "Error: no order of nameless (composite) #{node.name}"
-			end
-			if @children.size != 1
-				raise "Error: #{node.name} can contain only one format"
-			end
-			if @children[0].namespaces.namespace.href != $ns or @children[0].name != "format"
-				raise "Error: #{node.name} can contain only one format"
-			end
-			format = Format.new(@children[0])
-			format.output(var, args, names, proc, graft, @accessor)
+			@format.output(var, args, names, proc, graft, @accessor)
 		end
 		return next_var
 	end
