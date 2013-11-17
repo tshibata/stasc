@@ -164,6 +164,9 @@ class NamedValue
 		end
 		return next_var
 	end
+
+	def putExtra(proc, var, child_var)
+	end
 end
 
 class Attribute < NamedValue
@@ -228,6 +231,9 @@ class Bond
 		proc.puts "\t});"
 		return next_var
 	end
+
+	def putExtra(proc, var, child_var)
+	end
 end
 
 class Plug
@@ -271,6 +277,9 @@ class Plug
 		end
 		return next_var
 	end
+
+	def putExtra(proc, var, child_var)
+	end
 end
 
 class Text
@@ -288,68 +297,85 @@ class Text
 		end
 		return next_var
 	end
+
+	def putExtra(proc, var, child_var)
+	end
 end
 
 class Element
 
 	def initialize(parent, node)
-		@parent = parent
-		@node = node
+		if parent and $empty_tags.include?(parent.name.downcase)
+			puts "Warning: #{parent.name} should be empty (line #{parent.line_num})"
+		end
+		nodeNS = node.namespaces.namespace
+		if nodeNS
+			@namespace = nodeNS.href
+			@localname = node.name
+		else
+			@name = node.name
+		end
+		@attributes = [] # FIXME: hash map may be better.
+		node.attributes.each do |attribute|
+			attrNS = attribute.namespaces.namespace
+			if attrNS
+				@attributes.push([attrNS.href, attribute.name, attribute.value])
+			else
+				@attributes.push([attribute.name, attribute.value])
+			end
+		end
+		@children = []
+		node.each do |child|
+			childNS = child.namespaces.namespace
+			if childNS && childNS.href == $ns
+				if child.name == "plug"
+					@children.push(Plug.new(node, child))
+				elsif child.name == "bond"
+					@children.push(Bond.new(child))
+				elsif child.name == "attribute"
+					@children.push(Attribute.new(child))
+				elsif child.name == "property" 
+					@children.push(Property.new(child))
+				else
+					raise "Error: unknown stasc tag at #{child.line_num}"
+				end
+			elsif child.node_type == LibXML::XML::Node::TEXT_NODE
+				@children.push(Text.new(child))
+			elsif child.node_type == LibXML::XML::Node::ELEMENT_NODE
+				@children.push(Element.new(node, child))
+			end
+		end
 	end
 
 	def output(var, next_var, args, names, proc, graft)
-		if @parent and $empty_tags.include?(@parent.name.downcase)
-			puts "Warning: #{@parent.name} should be empty (line #{@parent.line_num})"
-		end
 		child_var = next_var
 		var = "n#{next_var}"
 		next_var = next_var + 1
 		if not graft
 			graft = var;
 		end
-		nodeNS = @node.namespaces.namespace
-		if nodeNS
-			proc.puts "\tvar #{var}=document.createElementNS('#{nodeNS.href}','#{@node.name}');"
+		if @namespace
+			proc.puts "\tvar #{var}=document.createElementNS('#{@namespace}','#{@localname}');"
 		else
-			proc.puts "\tvar #{var}=document.createElement('#{@node.name}');"
+			proc.puts "\tvar #{var}=document.createElement('#{@name}');"
 		end
-		@node.attributes.each do |attribute|
-			attrNS = attribute.namespaces.namespace
-			if attrNS
-				proc.puts "\t#{var}.setAttributeNS('#{attrNS.href}','#{attribute.name}','#{attribute.value}');"
+		@attributes.each do |attribute|
+			if attribute.size == 3
+				proc.puts "\t#{var}.setAttributeNS('#{attribute[0]}','#{attribute[1]}','#{attribute[2]}');"
 			else
-				proc.puts "\t#{var}.setAttribute('#{attribute.name}','#{attribute.value}');"
+				proc.puts "\t#{var}.setAttribute('#{attribute[0]}','#{attribute[1]}');"
 			end
 		end
-		@node.each do |child|
-			childNS = child.namespaces.namespace
-			if childNS && childNS.href == $ns
-				if child.name == "plug"
-					plug = Plug.new(@node, child)
-					next_var = plug.output(var, next_var, args, names, proc, graft)
-				elsif child.name == "bond"
-					bond = Bond.new(child)
-					next_var = bond.output(var, next_var, args, names, proc, graft)
-				elsif child.name == "attribute"
-					attribute = Attribute.new(child)
-					next_var = attribute.output(var, next_var, args, names, proc, graft)
-				elsif child.name == "property" 
-					property = Property.new(child)
-					next_var = property.output(var, next_var, args, names, proc, graft)
-				else
-					raise "Error: unknown stasc tag at #{child.line_num}"
-				end
-			elsif child.node_type == LibXML::XML::Node::TEXT_NODE
-				text = Text.new(child)
-				next_var = text.output(var, next_var, args, names, proc, graft)
-			elsif child.node_type == LibXML::XML::Node::ELEMENT_NODE
-				element = Element.new(@node, child)
-				child_var = next_var
-				next_var = element.output(var, next_var, args, names, proc, graft)
-				proc.puts "\t#{var}.appendChild(n#{child_var});"
-			end
+		@children.each do |child|
+			child_var = next_var
+			next_var = child.output(var, next_var, args, names, proc, graft)
+			child.putExtra(proc, var, child_var)
 		end
 		return next_var
+	end
+
+	def putExtra(proc, var, child_var)
+		proc.puts "\t#{var}.appendChild(n#{child_var});"
 	end
 end
 
