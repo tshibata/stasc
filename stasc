@@ -73,9 +73,7 @@ class StaticItem
 	end
 
 	def getValue()
-		text = @text;
-		text.gsub!(/\\/) {"\\\\"};
-		text.gsub!(/'/) {"\\'"};
+		text = @text.gsub(/\\/){"\\\\"}.gsub(/'/){"\\'"};
 		return "'#{text}'"
 	end
 
@@ -87,19 +85,19 @@ class Format
 
 	def initialize(node)
 		@items = [StaticItem.new("")]
-		node.each do |n|
-			if n.text?
-				if not @items[-1].append(n.content)
-					@items.push(StaticItem.new(n.content))
+		node.each do |item|
+			if item.text?
+				if not @items[-1].append(item.content)
+					@items.push(StaticItem.new(item.content))
 				end
-			elsif n.namespaces.namespace.href == $ns and n.name == "item"
-				if n.children.size != 1
+			elsif item.namespaces.namespace.href == $ns and item.name == "item"
+				if item.children.size != 1
 					raise "Error: item can contain only text"
 				end
-				if not n.children[0].text?
+				if not item.children[0].text?
 					raise "Error: item can contain only text"
 				end
-				@items.push(Item.new(n.attributes["name"], n.attributes["order"], n.content))
+				@items.push(Item.new(item.attributes["name"], item.attributes["order"], item.content))
 			else
 				raise "Error: format can contain only texts and items"
 			end
@@ -120,7 +118,7 @@ class NamedValue
 	def initialize(node)
 		@name = node.attributes["name"]
 		@order = node.attributes["order"]
-		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
+		children = node.children.delete_if{|child| (child.text? and child.content.strip.length == 0)}
 		if @name
 			if children.size != 0
 				raise "Error: named (monolithic) #{node.name} must be empty"
@@ -244,7 +242,7 @@ class Plug
 		if $empty_tags.include?(parent.name.downcase)
 			puts "Warning: #{parent.name} should be empty (line #{parent.line_num})"
 		end
-		children = node.children.delete_if{|n| (n.text? and n.content.strip.length == 0)}
+		children = node.children.delete_if{|child| (child.text? and child.content.strip.length == 0)}
 		if children.size == 0
 			raise "Error: no element in a plug at #{node.line_num}"
 		elsif 1 < children.size
@@ -285,15 +283,13 @@ end
 class Text
 
 	def initialize(node)
-		@text = node.content.strip
-		@text.gsub!(/\s+/," ");
-		@text.gsub!(/\\/) {"\\\\"};
-		@text.gsub!(/'/) {"\\'"};
+		@text = node.content
 	end
 
 	def output(var, next_var, args, names, proc, graft)
-		if not @text.empty? # FIXME: option
-			proc.puts "\t#{var}.appendChild(document.createTextNode('#{@text}'));"
+		text = @text.strip.gsub(/\s+/," ").gsub(/\\/){"\\\\"}.gsub(/'/){"\\'"};
+		if not text.empty? # FIXME: option
+			proc.puts "\t#{var}.appendChild(document.createTextNode('#{text}'));"
 		end
 		return next_var
 	end
@@ -308,9 +304,9 @@ class Element
 		if parent and $empty_tags.include?(parent.name.downcase)
 			puts "Warning: #{parent.name} should be empty (line #{parent.line_num})"
 		end
-		nodeNS = node.namespaces.namespace
-		if nodeNS
-			@namespace = nodeNS.href
+		ns = node.namespaces.namespace
+		if ns
+			@namespace = ns.href
 			@localname = node.name
 		else
 			@name = node.name
