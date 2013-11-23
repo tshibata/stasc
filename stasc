@@ -25,6 +25,52 @@ $empty_tags = [
 
 $ns = "http://tshibata.github.io/2013/stasc"
 
+class AttributeName
+
+	def initialize(name)
+		@name = name
+	end
+
+	def getter(var)
+		return "#{var}.getAttribute('#{@name}')"
+	end
+
+	def setter(var, value)
+		return "#{var}.setAttribute('#{@name}',#{value})"
+	end
+end
+
+class QualifiedAttributeName
+
+	def initialize(namespace, localname)
+		@namespace = namespace
+		@localname = localname
+	end
+
+	def getter(var)
+		return "#{var}.getAttributeNS('#{@namespace}','#{@localname}')"
+	end
+
+	def setter(var, value)
+		return "#{var}.setAttributeNS('#{@namespace}','#{@localname}',#{value})"
+	end
+end
+
+class PropertyName
+
+	def initialize(name)
+		@name = name
+	end
+
+	def getter(var)
+		return "#{var}.#{@name}"
+	end
+
+	def setter(var, value)
+		return "#{var}.#{@name}=#{value}"
+	end
+end
+
 class Item
 
 	def initialize(name, order, text)
@@ -55,7 +101,7 @@ class Item
 		end
 		names.add(@name)
 		proc.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
-		proc.puts "\t\tset:function(v){m#{@name}=v;#{accessor.dataSetter(var,composition)};},"
+		proc.puts "\t\tset:function(v){m#{@name}=v;#{accessor.setter(var,composition)};},"
 		proc.puts "\t\tget:function(){return m#{@name};}"
 		proc.puts "\t});"
 	end
@@ -109,13 +155,13 @@ class Format
 		@items.each do |item|
 			item.output(var, args, names, proc, graft, accessor, @composition)
 		end
-		proc.puts "\t#{accessor.dataSetter(var,@composition)};"
+		proc.puts "\t#{accessor.setter(var,@composition)};"
 	end
 end
 
 class NamedValue
 
-	def initialize(node)
+	def initialize(node, target)
 		@name = node.attributes["name"]
 		@order = node.attributes["order"]
 		children = node.children.delete_if{|child| (child.text? and child.content.strip.length == 0)}
@@ -135,6 +181,7 @@ class NamedValue
 			end
 			@format = Format.new(children[0])
 		end
+		@target = target
 	end
 
 	def output(var, next_var, args, names, proc, graft)
@@ -144,8 +191,8 @@ class NamedValue
 			end
 			names.add(@name)
 			proc.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
-			proc.puts "\t\tset:function(v){#{dataSetter(var,'v')};},"
-			proc.puts "\t\tget:function(){return #{dataGetter(var)};}"
+			proc.puts "\t\tset:function(v){#{@target.setter(var,'v')};},"
+			proc.puts "\t\tget:function(){return #{@target.getter(var)};}"
 			proc.puts "\t});"
 			if @order
 				i = @order.to_i
@@ -158,58 +205,12 @@ class NamedValue
 				proc.puts "\t}"
 			end
 		else
-			@format.output(var, args, names, proc, graft, self)
+			@format.output(var, args, names, proc, graft, @target)
 		end
 		return next_var
 	end
 
 	def putExtra(proc, var, child_var)
-	end
-end
-
-class Attribute < NamedValue
-
-	def initialize(node)
-		super(node)
-		target = node.attributes["target"]
-		if /([^:]*):(.*)/ =~ target
-			@namespace = node.namespaces.find_by_prefix($1).href
-			@localname = $2
-		else
-			@target = target
-		end
-	end
-
-	def dataSetter(var, value)
-		if @namespace
-			return "#{var}.setAttributeNS('#{@namespace}','#{@localname}',#{value})"
-		else
-			return "#{var}.setAttribute('#{@target}',#{value})"
-		end
-	end
-
-	def dataGetter(var)
-		if @namespace
-			return "#{var}.getAttributeNS('#{@namespace}','#{@localname}')"
-		else
-			return "#{var}.getAttribute('#{@target}')"
-		end
-	end
-end
-
-class Property < NamedValue
-
-	def initialize(node)
-		super(node)
-		@target = node.attributes["target"]
-	end
-
-	def dataSetter(var, value)
-		return "#{var}.#{@target}=#{value}"
-	end
-
-	def dataGetter(var)
-		return "#{var}.#{@target}"
 	end
 end
 
@@ -311,13 +312,13 @@ class Element
 		else
 			@name = node.name
 		end
-		@attributes = [] # FIXME: hash map may be better.
+		@attributes = []
 		node.attributes.each do |attribute|
-			attrNS = attribute.namespaces.namespace
-			if attrNS
-				@attributes.push([attrNS.href, attribute.name, attribute.value])
+			ns = attribute.namespaces.namespace
+			if ns
+				@attributes.push([QualifiedAttributeName.new(ns.href, attribute.name), attribute.value])
 			else
-				@attributes.push([attribute.name, attribute.value])
+				@attributes.push([AttributeName.new(attribute.name), attribute.value])
 			end
 		end
 		@children = []
@@ -329,9 +330,16 @@ class Element
 				elsif child.name == "bond"
 					@children.push(Bond.new(child))
 				elsif child.name == "attribute"
-					@children.push(Attribute.new(child))
-				elsif child.name == "property" 
-					@children.push(Property.new(child))
+					target = child.attributes["target"]
+					if /([^:]*):(.*)/ =~ target
+						ns = child.namespaces.find_by_prefix($1)
+						name = $2
+						@children.push(NamedValue.new(child, QualifiedAttributeName.new(ns.href, name)))
+					else
+						@children.push(NamedValue.new(child, AttributeName.new(target)))
+					end
+				elsif child.name == "property"
+					@children.push(NamedValue.new(child, PropertyName.new(child.attributes["target"])))
 				else
 					raise "Error: unknown stasc tag at #{child.line_num}"
 				end
@@ -356,11 +364,7 @@ class Element
 			proc.puts "\tvar #{var}=document.createElement('#{@name}');"
 		end
 		@attributes.each do |attribute|
-			if attribute.size == 3
-				proc.puts "\t#{var}.setAttributeNS('#{attribute[0]}','#{attribute[1]}','#{attribute[2]}');"
-			else
-				proc.puts "\t#{var}.setAttribute('#{attribute[0]}','#{attribute[1]}');"
-			end
+			proc.puts "\t#{attribute[0].setter(var,"'#{attribute[1]}'")};"
 		end
 		@children.each do |child|
 			child_var = next_var
