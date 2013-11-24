@@ -87,23 +87,23 @@ class Item
 		return "m#{@name}"
 	end
 
-	def output(var, args, names, proc, graft, accessor, composition)
-		proc.puts "\tvar m#{@name}='#{@text}';"
+	def output(var, args, names, out, graft, accessor, composition)
+		out.puts "\tvar m#{@name}='#{@text}';"
 		if @order
 			i = @order.to_i
 			if args.include?(i)
 				raise "Error: argument #{i} is defined twice"
 			end
 			args.add(i)
-			proc.puts "\tif(#{i}<arguments.length){"
-			proc.puts "\t\tm#{@name}=arguments[#{i}];"
-			proc.puts "\t}"
+			out.puts "\tif(#{i}<arguments.length){"
+			out.puts "\t\tm#{@name}=arguments[#{i}];"
+			out.puts "\t}"
 		end
 		names.add(@name)
-		proc.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
-		proc.puts "\t\tset:function(v){m#{@name}=v;#{accessor.setter(var,composition)};},"
-		proc.puts "\t\tget:function(){return m#{@name};}"
-		proc.puts "\t});"
+		out.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
+		out.puts "\t\tset:function(v){m#{@name}=v;#{accessor.setter(var,composition)};},"
+		out.puts "\t\tget:function(){return m#{@name};}"
+		out.puts "\t});"
 	end
 end
 
@@ -123,7 +123,7 @@ class StaticItem
 		return "'#{text}'"
 	end
 
-	def output(var, args, names, proc, graft, accessor, composition)
+	def output(var, args, names, out, graft, accessor, composition)
 	end
 end
 
@@ -153,11 +153,11 @@ class Format
 		@composition = @items.map{|item| item.getValue()}.join("+")
 	end
 
-	def output(var, args, names, proc, graft, accessor)
+	def output(var, args, names, out, graft, accessor)
 		@items.each do |item|
-			item.output(var, args, names, proc, graft, accessor, @composition)
+			item.output(var, args, names, out, graft, accessor, @composition)
 		end
-		proc.puts "\t#{accessor.setter(var,@composition)};"
+		out.puts "\t#{accessor.setter(var,@composition)};"
 	end
 end
 
@@ -188,33 +188,33 @@ class NamedValue
 		@target = target
 	end
 
-	def output(var, next_var, args, names, proc, graft)
+	def output(var, next_var, args, names, out, graft)
 		if @name
 			if names.include?(@name)
 				raise "Error: #{@name} is defined twice"
 			end
 			names.add(@name)
-			proc.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
-			proc.puts "\t\tset:function(v){#{@target.setter(var,'v')};},"
-			proc.puts "\t\tget:function(){return #{@target.getter(var)};}"
-			proc.puts "\t});"
+			out.puts "\tObject.defineProperty(#{graft}, '#{@name}',{"
+			out.puts "\t\tset:function(v){#{@target.setter(var,'v')};},"
+			out.puts "\t\tget:function(){return #{@target.getter(var)};}"
+			out.puts "\t});"
 			if @order
 				i = @order.to_i
 				if args.include?(i)
 					raise "Error: argument #{i} is defined twice"
 				end
 				args.add(i)
-				proc.puts "\tif(#{i}<arguments.length){"
-				proc.puts "\t\t#{graft}.#{@name}=arguments[#{i}];"
-				proc.puts "\t}"
+				out.puts "\tif(#{i}<arguments.length){"
+				out.puts "\t\t#{graft}.#{@name}=arguments[#{i}];"
+				out.puts "\t}"
 			end
 		else
-			@format.output(var, args, names, proc, graft, @target)
+			@format.output(var, args, names, out, graft, @target)
 		end
 		return next_var
 	end
 
-	def putExtra(proc, var, child_var)
+	def putExtra(out, var, child_var)
 	end
 end
 
@@ -226,18 +226,18 @@ class Bond
 		@name = node.attributes["name"]
 	end
 
-	def output(var, next_var, args, names, proc, graft)
+	def output(var, next_var, args, names, out, graft)
 		if names.include?(@name)
 			raise "Error: #{@name} is defined twice"
 		end
 		names.add(@name)
-		proc.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
-		proc.puts "\t\tget:function(){return #{var};}"
-		proc.puts "\t});"
+		out.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
+		out.puts "\t\tget:function(){return #{var};}"
+		out.puts "\t});"
 		return next_var
 	end
 
-	def putExtra(proc, var, child_var)
+	def putExtra(out, var, child_var)
 	end
 end
 
@@ -260,32 +260,32 @@ class Plug
 		@element = Element.new(parent, children[0])
 	end
 
-	def output(var, next_var, args, names, proc, graft)
+	def output(var, next_var, args, names, out, graft)
 		child_var = next_var
-		next_var = @element.output(var, next_var, args, names, proc, nil)
+		next_var = @element.output(var, next_var, args, names, out, nil)
 		if names.include?(@name)
 			raise "Error: #{@name} is defined twice"
 		end
 		names.add(@name)
-		proc.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
-		proc.puts "\t\tset:function(v){#{var}.replaceChild(v,n#{child_var});n#{child_var}=v;},"
-		proc.puts "\t\tget:function(){return n#{child_var};}"
-		proc.puts "\t});"
-		proc.puts "\t#{var}.appendChild(n#{child_var});"
+		out.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
+		out.puts "\t\tset:function(v){#{var}.replaceChild(v,n#{child_var});n#{child_var}=v;},"
+		out.puts "\t\tget:function(){return n#{child_var};}"
+		out.puts "\t});"
+		out.puts "\t#{var}.appendChild(n#{child_var});"
 		if @order
 			i = @order.to_i
 			if args.include?(i)
 				raise "Error: argument #{i} is defined twice"
 			end
 			args.add(i)
-			proc.puts "\tif(#{i}<arguments.length){"
-			proc.puts "\t\t#{graft}.#{@name}=arguments[#{i}];"
-			proc.puts "\t}"
+			out.puts "\tif(#{i}<arguments.length){"
+			out.puts "\t\t#{graft}.#{@name}=arguments[#{i}];"
+			out.puts "\t}"
 		end
 		return next_var
 	end
 
-	def putExtra(proc, var, child_var)
+	def putExtra(out, var, child_var)
 	end
 end
 
@@ -297,15 +297,15 @@ class Text
 		@text = node.content
 	end
 
-	def output(var, next_var, args, names, proc, graft)
+	def output(var, next_var, args, names, out, graft)
 		text = @text.strip.gsub(/\s+/," ").gsub(/\\/){"\\\\"}.gsub(/'/){"\\'"};
 		if not text.empty? # FIXME: option
-			proc.puts "\t#{var}.appendChild(document.createTextNode('#{text}'));"
+			out.puts "\t#{var}.appendChild(document.createTextNode('#{text}'));"
 		end
 		return next_var
 	end
 
-	def putExtra(proc, var, child_var)
+	def putExtra(out, var, child_var)
 	end
 end
 
@@ -363,7 +363,7 @@ class Element
 		end
 	end
 
-	def output(var, next_var, args, names, proc, graft)
+	def output(var, next_var, args, names, out, graft)
 		child_var = next_var
 		var = "n#{next_var}"
 		next_var = next_var + 1
@@ -371,23 +371,23 @@ class Element
 			graft = var;
 		end
 		if @namespace
-			proc.puts "\tvar #{var}=document.createElementNS('#{@namespace}','#{@localname}');"
+			out.puts "\tvar #{var}=document.createElementNS('#{@namespace}','#{@localname}');"
 		else
-			proc.puts "\tvar #{var}=document.createElement('#{@name}');"
+			out.puts "\tvar #{var}=document.createElement('#{@name}');"
 		end
 		@attributes.each do |attribute|
-			proc.puts "\t#{attribute[0].setter(var,"'#{attribute[1]}'")};"
+			out.puts "\t#{attribute[0].setter(var,"'#{attribute[1]}'")};"
 		end
 		@children.each do |child|
 			child_var = next_var
-			next_var = child.output(var, next_var, args, names, proc, graft)
-			child.putExtra(proc, var, child_var)
+			next_var = child.output(var, next_var, args, names, out, graft)
+			child.putExtra(out, var, child_var)
 		end
 		return next_var
 	end
 
-	def putExtra(proc, var, child_var)
-		proc.puts "\t#{var}.appendChild(n#{child_var});"
+	def putExtra(out, var, child_var)
+		out.puts "\t#{var}.appendChild(n#{child_var});"
 	end
 end
 
