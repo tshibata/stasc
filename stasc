@@ -129,6 +129,8 @@ end
 
 class Format
 
+	# This class represents stasc format tag.
+
 	def initialize(node)
 		@items = [StaticItem.new("")]
 		node.each do |item|
@@ -160,6 +162,8 @@ class Format
 end
 
 class NamedValue
+
+	# This class represents stasc attribute tag and stasc property tag.
 
 	def initialize(node, target)
 		@name = node.attributes["name"]
@@ -216,6 +220,8 @@ end
 
 class Bond
 
+	# This class represents stasc bond tag.
+
 	def initialize(node)
 		@name = node.attributes["name"]
 	end
@@ -236,6 +242,8 @@ class Bond
 end
 
 class Plug
+
+	# This class represents stasc plug tag.
 
 	def initialize(parent, node)
 		@name = node.attributes["name"]
@@ -283,6 +291,8 @@ end
 
 class Text
 
+	# This class represents text node except for text in stasc format tag.
+
 	def initialize(node)
 		@text = node.content
 	end
@@ -300,6 +310,8 @@ class Text
 end
 
 class Element
+
+	# This class represents element except for stasc tags.
 
 	def initialize(parent, node)
 		if parent and $empty_tags.include?(parent.name.downcase)
