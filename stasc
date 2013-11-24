@@ -355,10 +355,10 @@ class Element
 		end
 	end
 
-	def output(parent_var, namer, args, names, out, graft)
-		var = namer.name()
+	def output(var, namer, args, names, out, graft)
+		var = namer.name() # it has its own variable
 		if not graft
-			graft = var;
+			graft = var # it is root of new graft
 		end
 		if @namespace
 			out.puts "\tvar #{var}=document.createElementNS('#{@namespace}','#{@localname}');"
@@ -369,12 +369,12 @@ class Element
 			out.puts "\t#{attribute[0].setter(var,"'#{attribute[1]}'")};"
 		end
 		@children.each do |child|
-			child.output(var, namer, args, names, out, graft)
+			child_var = child.output(var, namer, args, names, out, graft)
+			if child_var
+				out.puts "\t#{var}.appendChild(#{child_var});"
+			end
 		end
-		if parent_var
-			out.puts "\t#{parent_var}.appendChild(#{var});"
-		end
-		return var
+		return var # let the caller take care of this
 	end
 end
 
