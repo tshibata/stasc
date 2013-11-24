@@ -248,9 +248,6 @@ class Plug
 	def initialize(parent, node)
 		@name = node.attributes["name"]
 		@order = node.attributes["order"]
-		if $empty_tags.include?(parent.name.downcase)
-			puts "Warning: #{parent.name} should be empty (line #{parent.line_num})"
-		end
 		children = node.children.delete_if{|child| (child.text? and child.content.strip.empty?)}
 		if children.size == 0
 			raise "Error: no element in a plug at #{node.line_num}"
