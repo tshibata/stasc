@@ -213,9 +213,6 @@ class NamedValue
 		end
 		return next_var
 	end
-
-	def putExtra(out, var, child_var)
-	end
 end
 
 class Bond
@@ -235,9 +232,6 @@ class Bond
 		out.puts "\t\tget:function(){return #{var};}"
 		out.puts "\t});"
 		return next_var
-	end
-
-	def putExtra(out, var, child_var)
 	end
 end
 
@@ -259,7 +253,7 @@ class Plug
 
 	def output(var, next_var, args, names, out, graft)
 		child_var = next_var
-		next_var = @element.output(var, next_var, args, names, out, nil)
+		next_var = @element.output(nil, next_var, args, names, out, nil)
 		if names.include?(@name)
 			raise "Error: #{@name} is defined twice"
 		end
@@ -281,9 +275,6 @@ class Plug
 		end
 		return next_var
 	end
-
-	def putExtra(out, var, child_var)
-	end
 end
 
 class Text
@@ -300,9 +291,6 @@ class Text
 			out.puts "\t#{var}.appendChild(document.createTextNode('#{text}'));"
 		end
 		return next_var
-	end
-
-	def putExtra(out, var, child_var)
 	end
 end
 
@@ -360,8 +348,7 @@ class Element
 		end
 	end
 
-	def output(var, next_var, args, names, out, graft)
-		child_var = next_var
+	def output(parent_var, next_var, args, names, out, graft)
 		var = "n#{next_var}"
 		next_var = next_var + 1
 		if not graft
@@ -378,13 +365,11 @@ class Element
 		@children.each do |child|
 			child_var = next_var
 			next_var = child.output(var, next_var, args, names, out, graft)
-			child.putExtra(out, var, child_var)
+		end
+		if parent_var
+			out.puts "\t#{parent_var}.appendChild(#{var});"
 		end
 		return next_var
-	end
-
-	def putExtra(out, var, child_var)
-		out.puts "\t#{var}.appendChild(n#{child_var});"
 	end
 end
 
@@ -439,7 +424,7 @@ begin
 			args = Set.new()
 			io = StringIO.new()
 			element = Element.new(nil, doc.root)
-			element.output("", 0, args, names, io, nil)
+			element.output(nil, 0, args, names, io, nil)
 			if not (args.sort == Array(0...args.size))
 				raise "Unused argument(s)"
 			end
