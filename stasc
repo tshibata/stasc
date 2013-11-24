@@ -25,6 +25,18 @@ $empty_tags = [
 
 $ns = "http://tshibata.github.io/2013/stasc"
 
+class GodFather
+
+	def initialize()
+		@count = -1
+	end
+
+	def name()
+		@count = @count + 1
+		return "n#{@count}"
+	end
+end
+
 class AttributeName
 
 	def initialize(name)
@@ -188,7 +200,7 @@ class NamedValue
 		@target = target
 	end
 
-	def output(var, next_var, args, names, out, graft)
+	def output(var, namer, args, names, out, graft)
 		if @name
 			if names.include?(@name)
 				raise "Error: #{@name} is defined twice"
@@ -211,7 +223,6 @@ class NamedValue
 		else
 			@format.output(var, args, names, out, graft, @target)
 		end
-		return next_var
 	end
 end
 
@@ -223,7 +234,7 @@ class Bond
 		@name = node.attributes["name"]
 	end
 
-	def output(var, next_var, args, names, out, graft)
+	def output(var, namer, args, names, out, graft)
 		if names.include?(@name)
 			raise "Error: #{@name} is defined twice"
 		end
@@ -231,7 +242,6 @@ class Bond
 		out.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
 		out.puts "\t\tget:function(){return #{var};}"
 		out.puts "\t});"
-		return next_var
 	end
 end
 
@@ -251,18 +261,17 @@ class Plug
 		@element = Element.new(parent, children[0])
 	end
 
-	def output(var, next_var, args, names, out, graft)
-		child_var = next_var
-		next_var = @element.output(nil, next_var, args, names, out, nil)
+	def output(var, namer, args, names, out, graft)
+		child_var = @element.output(nil, namer, args, names, out, nil)
 		if names.include?(@name)
 			raise "Error: #{@name} is defined twice"
 		end
 		names.add(@name)
 		out.puts "\tObject.defineProperty(#{graft},'#{@name}',{"
-		out.puts "\t\tset:function(v){#{var}.replaceChild(v,n#{child_var});n#{child_var}=v;},"
-		out.puts "\t\tget:function(){return n#{child_var};}"
+		out.puts "\t\tset:function(v){#{var}.replaceChild(v,#{child_var});#{child_var}=v;},"
+		out.puts "\t\tget:function(){return #{child_var};}"
 		out.puts "\t});"
-		out.puts "\t#{var}.appendChild(n#{child_var});"
+		out.puts "\t#{var}.appendChild(#{child_var});"
 		if @order
 			i = @order.to_i
 			if args.include?(i)
@@ -273,7 +282,6 @@ class Plug
 			out.puts "\t\t#{graft}.#{@name}=arguments[#{i}];"
 			out.puts "\t}"
 		end
-		return next_var
 	end
 end
 
@@ -285,12 +293,11 @@ class Text
 		@text = node.content
 	end
 
-	def output(var, next_var, args, names, out, graft)
+	def output(var, namer, args, names, out, graft)
 		text = @text.strip.gsub(/\s+/," ").gsub(/\\/){"\\\\"}.gsub(/'/){"\\'"};
 		if not text.empty? # FIXME: option
 			out.puts "\t#{var}.appendChild(document.createTextNode('#{text}'));"
 		end
-		return next_var
 	end
 end
 
@@ -348,9 +355,8 @@ class Element
 		end
 	end
 
-	def output(parent_var, next_var, args, names, out, graft)
-		var = "n#{next_var}"
-		next_var = next_var + 1
+	def output(parent_var, namer, args, names, out, graft)
+		var = namer.name()
 		if not graft
 			graft = var;
 		end
@@ -363,13 +369,12 @@ class Element
 			out.puts "\t#{attribute[0].setter(var,"'#{attribute[1]}'")};"
 		end
 		@children.each do |child|
-			child_var = next_var
-			next_var = child.output(var, next_var, args, names, out, graft)
+			child.output(var, namer, args, names, out, graft)
 		end
 		if parent_var
 			out.puts "\t#{parent_var}.appendChild(#{var});"
 		end
-		return next_var
+		return var
 	end
 end
 
@@ -424,12 +429,12 @@ begin
 			args = Set.new()
 			io = StringIO.new()
 			element = Element.new(nil, doc.root)
-			element.output(nil, 0, args, names, io, nil)
+			var = element.output(nil, GodFather.new(), args, names, io, nil)
 			if not (args.sort == Array(0...args.size))
 				raise "Unused argument(s)"
 			end
 			buf.puts io.string
-			buf.puts "\treturn n0;"
+			buf.puts "\treturn #{var};"
 			buf.puts "};"
 		rescue Exception => exception
 			raise "#{exception} in #{src}"
