@@ -139,6 +139,26 @@ describe('ss.xml with stasc format tag', function () {
 	});
 });
 
+describe('ss.xml with stasc plug tag', function () {
+	it('should generate dom object with pluggable graft', function (done) {
+		child_process.exec('bash -c ../../stasc', {cwd: 'test/plug_test'}, function (error, stdout, stderr) {
+			should.not.exist(error);
+			stderr.should.equal('');
+
+			var expected = document.createElement('div');
+			expected.appendChild(document.createTextNode('Zurich'));
+			expected.appendChild(document.createElement('br'));
+			expected.appendChild(document.createTextNode('Switzerland'));
+			require('./plug_test/Stasc');
+			var actual = parent();
+			actual.Separator = child();
+			actual.isEqualNode(expected).should.be.ok;
+
+			done();
+		});
+	});
+});
+
 describe('ss.xml with double definition', function () {
 	it('should fail', function (done) {
 		child_process.exec('bash -c ../../stasc', {cwd: 'test/double_def_test'}, function (error, stdout, stderr) {
