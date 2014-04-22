@@ -294,8 +294,9 @@ class Text
 	end
 
 	def output(var, namer, args, names, out, graft)
+		# TBD: does anyone wants to keep spaces?
 		text = @text.strip.gsub(/\s+/," ").gsub(/\\/){"\\\\"}.gsub(/'/){"\\'"};
-		if not text.empty? # FIXME: option
+		if not text.empty?
 			out.puts "\t#{var}.appendChild(document.createTextNode('#{text}'));"
 		end
 	end
