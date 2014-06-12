@@ -131,7 +131,7 @@ class StaticItem
 	end
 
 	def getValue()
-		text = @text.gsub(/\\/){"\\\\"}.gsub(/'/){"\\'"};
+		text = @text.gsub(/\\/){"\\\\"}.gsub(/'/){"\\'"}
 		return "'#{text}'"
 	end
 
@@ -295,7 +295,7 @@ class Text
 
 	def output(var, namer, args, names, out, graft)
 		# TBD: does anyone wants to keep spaces?
-		text = @text.strip.gsub(/\s+/," ").gsub(/\\/){"\\\\"}.gsub(/'/){"\\'"};
+		text = @text.strip.gsub(/\s+/," ").gsub(/\\/){"\\\\"}.gsub(/'/){"\\'"}
 		if not text.empty?
 			out.puts "\t#{var}.appendChild(document.createTextNode('#{text}'));"
 		end
