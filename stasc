@@ -367,6 +367,7 @@ class Element
 			out.puts "\tvar #{var}=document.createElement('#{@name}');"
 		end
 		@attributes.each do |attribute|
+			attribute[1].gsub!(/'|\\'/){"\\'"}
 			out.puts "\t#{attribute[0].setter(var,"'#{attribute[1]}'")};"
 		end
 		@children.each do |child|

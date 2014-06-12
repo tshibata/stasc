@@ -170,3 +170,21 @@ describe('ss.xml with double definition', function () {
 	});
 });
 
+describe('ss.xml with single quotation in value of an attribute', function () {
+	it('should generate escaped quotation', function (done) {
+		child_process.exec('bash -c ../../stasc', {cwd: 'test/single_quote_in_value_test'}, function (error, stdout, stderr) {
+			should.not.exist(error);
+			stderr.should.equal('');
+
+			var expected = document.createElement('img');
+			expected.setAttribute('src','none.png')
+			expected.setAttribute('alt',"'not found\'")
+			require('./single_quote_in_value_test/Stasc');
+			var actual = value();
+			actual.isEqualNode(expected).should.be.ok;
+
+			done();
+		});
+	});
+});
+
